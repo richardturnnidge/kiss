@@ -3,7 +3,7 @@
 KISS is a very simple stripped down language for the Agon platform (Agon light, Agon light2, Agon Origins, Console8) and is work in progress.  
 The objective is to think in simple commands and simple structures, with limited data.  
 A good prep for learning assembler, with a limited number of single character variable names and a limited number of actual commands.  
-The editor part is based on AED.  
+The editor part is based on `AED` (Another Text Editor by Igor Chaves Cananea).  
 VDP calls allow significant use of the VDP system if required.  
 To load, edit and run your file, use:  
 `kiss myfile.txt`  
@@ -25,7 +25,11 @@ Goto or conditional goto.
 Single loop.
 Subroutines, up to 16 deep.  
 Up to 256 labels.  
-Unlimited comments.
+Unlimited comments.  
+
+There is absolutely no error checking or reporrting, so just like writing in assembler, you could very easily crash with very little feedback!
+
+You can enable DEBUG mode with the command `DEBUG 1` which will report each line as it is precessed.
 
 
 # Command set
@@ -153,7 +157,7 @@ MUL a b
 `DIV <variable1/value> <variable2>`  
 Divides variable1 or value by variable2. Result is stored in variable1 as rounded down integer. Mod is stored in 'carry flag'
 
-`WAIT <variable1/value>`  
+`DELAY <variable1/value>`  
 Delays action for value 1/100's second
 
 `DEBUG <value>`  
@@ -170,6 +174,12 @@ Read data at variable offset, or integer offset and put into variable
 
 `SETDATA <offset/variable> <value/variable>`  
 Set data at given offset with what value or variable
+
+`BEEP <offset/variable> <value/variable>`  
+Beep <freq> for <time>
+
+`WAIT`  
+Waits for user to press and release any key.
 
 `EXIT`  
 Finish code and exit program
