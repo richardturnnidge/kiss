@@ -8,6 +8,8 @@ VDP calls allow significant use of the VDP system if required.
 To load, edit and run your file, use:  
 `kiss myfile.txt`  
 
+Use `CTRL R` ro run the file.  
+
 A command line version is available with no editor, that takes the file name as the first argument. eg.  
 `runkiss myfile.txt`
 
