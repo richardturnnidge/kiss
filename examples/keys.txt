@@ -1,0 +1,50 @@
+/ KEY INPUT EXAMPLE
+/ PRESS - OR + TO CHANGE VALUE
+/ PRESS ANY KEY TO SEE VALUE
+
+PRINT ESC_to_exit
+SET C 128
+CALL 4
+
+LABEL 1     / main loop
+
+KEY         / sets @ to key code or 0
+SET K @     / store keycode
+CALLIF 2 43
+CALLIF 3 45
+CALL 5
+GOTO 1
+
+
+LABEL 2         / increase value
+ADD 1 C
+CALL 4
+RET
+
+LABEL 3         / decrease value
+SUB 1 C
+CALL 4
+RET
+
+
+
+LABEL 4         / print out counter value
+TABTO 14 12
+PRINTNUM C
+SPC
+SPC
+RET
+
+
+LABEL 5         / print key code and key
+TABTO 10 10
+VDP K
+TABTO 14 10
+PRINTNUM K
+SPC
+SPC
+RET
+
+
+
+EXIT

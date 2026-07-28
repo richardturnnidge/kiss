@@ -1,0 +1,53 @@
+/ Maths example
+
+print MATHS
+CR
+CR
+
+SET A 10
+SET B 20
+ADD B A     / add b to a
+print B+A=
+PRINTNUM A  / print a as a decimal number
+CR
+print carry=
+PRINTNUM ?  / print carry
+CR
+CR
+
+SET C 10
+SET D 8
+SUB C D     /subtract c from d
+print D-C=
+PRINTNUM D  / print result
+CR
+print carry=
+PRINTNUM ?  / print carry
+CR
+CR
+
+
+SET E 50
+SET F 6
+MUL E F     / multiply e by f
+print E*F=
+PRINTNUM E  / print result
+CR
+print carry=
+PRINTNUM ?  / print carry
+CR
+CR
+
+SET G 50
+SET H 30
+DIV G H     / divide g by h
+print G/H=
+PRINTNUM G  / print result
+CR
+print carry=
+PRINTNUM ?  / print carry
+CR
+
+wait
+
+EXIT

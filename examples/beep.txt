@@ -1,0 +1,13 @@
+/BEEP EXAMPLE
+
+DEBUG 0
+SET A 10
+SET B 10
+LOOP 10
+    BEEP A B    / beep freq time
+    ADD 5 A
+    PRINTNUM A
+    CR
+    DELAY 35
+ENDLOOP
+EXIT

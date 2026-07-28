@@ -1,0 +1,25 @@
+/ UDG & subroutine example
+
+CURSOR 0    /set cursor off
+CALL 1      /call sub at label 1
+SET C to 20  
+SET B 30
+TABTO B C  / set tab    
+VDP 128    / print custom chars
+WAIT       / wait fo user to press a key
+EXIT       / exits
+
+
+
+LABEL 1     / define UDG char
+VDP 23      / vdp define UDG
+VDP 128     / which char
+VDP 11111111
+VDP 10000001
+VDP 10100101
+VDP 10011001
+VDP 10011001
+VDP 10100101
+VDP 10000001
+VDP 11111111
+RET
