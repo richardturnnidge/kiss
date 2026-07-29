@@ -1,0 +1,7 @@
+// example reading data from file
+// data from a fle can include spaces
+
+vdps 11 19  / read data at offset 11 for 19 bytes
+
+wait
+exit
