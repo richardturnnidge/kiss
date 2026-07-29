@@ -131,7 +131,10 @@ void runcode(char* fname){
         char *lparam1;
         char *lparam2;
 
+        // replace ',' with spc if used
         replace_char(curLine, ',',' ');
+        replace_char(curLine, '=',' ');
+
         //remove unwanted extra words
         strip_substr(curLine, " to");
         strip_substr(curLine, " =");
@@ -239,18 +242,6 @@ Here we step though all possible commands and act on them
 
 void parseLine(char *command, char *param1, char *param2){
 
-    // if(DEBUGGING) {
-    //     if (command != NULL) {
-    //         printf("%s", command);
-    //     }
-    //     if (param1 != NULL) {
-    //         printf(" %s", param1);
-    //     }
-    //     if (param2 != NULL) {
-    //         printf(" %s", param2);
-    //     }
-    //     printf("\n");
-    // }
 //
 //-----------------------------------------------
 //
@@ -1436,6 +1427,50 @@ void parseLine(char *command, char *param1, char *param2){
     }
 
  
+//-----------------------------------------------
+//
+//  PRINTVARS
+// dump out all variables to screen
+//
+//-----------------------------------------------
+
+    if (strcmp(command,"printvars") == 0 || strcmp(command,"PRINTVARS") == 0 ){
+        for(uint8_t asc = 0; asc < 28; asc++){
+            printf("%c = %d\n", (char)asc+63,  varSpace[asc]);
+        }
+    }
+
+ 
+//-----------------------------------------------
+//
+//  INPUT <variable>
+//  use fgets() and strtol() to grab number from user
+//
+//-----------------------------------------------
+
+    if (strcmp(command,"input") == 0 || strcmp(command,"INPUT") == 0 ){
+        
+        char buffer[20];
+        char *endptr;
+        int val;
+
+        fgets(buffer, sizeof(buffer), stdin);
+        val = strtol(buffer, &endptr, 10);
+
+        if(val >255) val =0;
+
+        if(param1 != NULL){
+            uint8_t varOffset = *param1;
+            varOffset = lower(varOffset);
+            varSpace[varOffset] = val;
+        } else {
+            varSpace[resultChar] = val;
+        }
+        if(DEBUGGING) printf("User entered %d for var %c \n", val, *param1);
+    }
+    
+
+
 
 
 }       // end of command processing loop
