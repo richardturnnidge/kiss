@@ -6,6 +6,8 @@ SET C to 20
 SET B 30
 TABTO B C  / set tab    
 VDP 128    / print custom chars
+SPC
+vdp 129
 WAIT       / wait fo user to press a key
 EXIT       / exits
 
@@ -22,4 +24,10 @@ VDP 10011001
 VDP 10100101
 VDP 10000001
 VDP 11111111
+
+// load udg from file
+vdp 23      / define UDG
+vdp 129     / set char number
+vdps 100 8  / read data from file
+
 RET
