@@ -16,20 +16,20 @@ A command line version is available with no editor, that takes the file name as 
 # The Language
 
 Concept-
-8 bit byte values only
-variables A -> Z
-@ is used as special case, the 'answer' to some queries
-? is used as special case, the 'carry' to some math or comparison functions
+8 bit byte values only.  
+variables A -> Z.  
+@ is used as special case, the 'answer' to some queries.  
+? is used as special case, the 'carry' to some math or comparison functions.
 
 Goto or conditional goto.  
-Single loop.
+Single loop.  
 Subroutines, up to 16 deep.  
 Up to 256 labels.  
 Unlimited comments.  
 
 There is absolutely no error checking or reporrting, so just like writing in assembler, you could very easily crash with very little feedback!
 
-You can enable DEBUG mode with the command `DEBUG 1` which will report each line as it is precessed.
+You can enable DEBUG mode with the command `DEBUG 1` which will report each line as it is processed.
 
 
 # Command set
@@ -60,10 +60,10 @@ COMP x to y
 
 
 `GETDATA <offset/variable> <variable>`   
-Read data at variable offset, or integer offset and put into variable
+Read data at file offset and put into variable
 
 `SETDATA <offset/variable> <value/variable>`  
-Set data at given offset with what value or variable
+Set data at given offset with value or variable
 
 
 ## Program Flow & logic
@@ -90,11 +90,11 @@ Goto label if 'result' is a certain value or value in a variable.
 Call labelled subroutine and return later.
 
 `CALLIF` <label ID> <value expected in '@' value/variable>  
-Call if result matches
+Call if result matches.  
 eg. if 'result' is 20, then gosub label subroutine.
 
 `RET`  
-Return from a subroutine, if there is a line number in the return variable.
+Return from a subroutine, if there is a line number in the return variable.  
 Stack allows for up to 16 nested call/returns.
 
 
@@ -130,10 +130,12 @@ Divides variable1 or value by variable2. Result is stored in variable1 as rounde
 `CLS`  
 Clear the screen.
 
+`INK <value/variable>`  
+Sets foreground or background colours.  
+0-63 is foreground ink, 128-191 is background, assuming current screen mode has capability.
 
 `MODE <value/variable>`  
 Sets screen mode.
-
 
 
 `TABTO <value/variable> <value/variable>`  
@@ -145,7 +147,7 @@ Sends a contiguous series of chars to VDP as string. No spaces allowed.
 
 
 `PRINTNUM` <value/variable> <optional format>  
-Prints out a number. Format options: DEC, HEX, BIN. 
+Prints out a number. Format options: DEC, HEX, BIN.  
 Default is decimal
 
 `CR`  
@@ -160,16 +162,15 @@ Turn cursor off/on (0 or 1)
 
 ## Plotting Line Graphics
 
-`INK <value/variable>`  
-Sets foreground or background colours  
-0-63 is foreground ink, 128-191 is background, assuming current screen mode has capability
-
 `PEN <value/variable>`  
-Sets ink colour for PLOT commands  
-0-63 is foreground ink
+Sets ink colour for PLOT commands.  
+0-63 is foreground ink.  
+
 
 `PLOT <value/variable> <value/variable>`  
-Plot point at x,y
+Plot point at x,y.  
+Only basic lines are currently implemented as commands, with X and Y limited to 255.  
+Full functionality can be achieved by sending raw VDP commands.
 
 `MOVETO <value/variable> <value/variable>`  
 Move plot position to x,y
@@ -181,7 +182,7 @@ Move plot position to x,y
 ## Interaction with user
 
 `KEY`  
-checks down status and sets '@' to ascii code or 0 if none
+checks down status and sets '@' to ascii code or 0 if none.
 
 
 `WAIT`  
@@ -195,57 +196,50 @@ Beep <freq> for <time>
 ## Using the Power of VDP
 
 `VDP <value/variable>`  
-Sends a byte to VDP  
+Sends a byte to VDP.  
 NOTE: Debug mode must not be active when sending VDP bytes.
 
 
 `VDPS <offset/variable> <value/variable>`  
-Sends a series of bytes to VDP from data store
+Sends a series of bytes to VDP from data store.
 
 
 ## Other Misc Commands
 
 
 `DEBUG <value>`  
-Turn debug off/on (0 or 1)
-
-
-
-
-
-
-
+Turn debug off/on (0 or 1).
 
 
 
 
 # Code notes
 
-Not case sensitive, but cannot mix case within a command.
+Not case sensitive, but cannot mix case within a command.  
 eg. `SET` or `set` are valid, `seT` is not.
 
-Variables can be upper or lower case, but are the same.
+Variables can be upper or lower case, but are the same.  
 eg. `A` is the same as `a`.
 
 
 
 # Data
 
-a block of 256 bytes of data is available for additional storage
+A block of 256 bytes of data is available for additional storage.  
 
 This is stored in a local file named `kiss.data` and loaded at runtime, so can be edited outside of AlphaMinus.
-This could contain strings or other information, even data for UDGs.
+This could contain strings or other information, even data for UDGs.  
 
-The file is not changed by any user code, only the data loaded into memory.
+The file is not changed by any user code, only the data loaded into memory.  
 
 Export of data to be considered on todo list.  
 Importing of other files on todo list
 
 
-comments- start with /
+Comments- start with /
 /a comment line
 
-every command or data is seperated by space/s 
-a new code line starts after a CR
+Every command or data is seperated by space/s.  
+A new code line starts after a CR.  
 
 Any line's command not recognised will be ignored.
