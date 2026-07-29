@@ -192,6 +192,9 @@ Waits for user to press and release any key.
 `BEEP <offset/variable> <value/variable>`  
 Beep <freq> for <time>
 
+`INPUT <variable>`
+Requests numerical input from user.
+
 
 ## Using the Power of VDP
 
