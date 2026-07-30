@@ -1,9 +1,9 @@
-// #include "text_buffer.h"
+// FUNCTIONS IN RUNTIME.H
 
 void runcode(char* fname);
-//void runcode(text_buffer* aTextBuffer);
 void parseLine(char *command, char *param1, char *param2);
 uint8_t lower(uint8_t num);
-// Removes all occurrences of `sub` from a single string, in place.
 void strip_substr(char *str, const char *sub);
 void strip_substr_array(char *arr[], size_t count, const char *sub);
+void replace_char(char *str, char old_char, char new_char);
+void toUpperCase(char *str) ;

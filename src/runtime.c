@@ -7,6 +7,7 @@
 #include <agon/timer.h>
 #include <time.h>
 #include "runtime.h"
+#include <ctype.h>
 
 // runtime part of code
 #define MAX_LINES 2048                    // max number of lines in our program
@@ -46,50 +47,29 @@ bool running = false;                   // is code running
 //void runcode(text_buffer* aTextBuffer){
 void runcode(char* fname){
 
-    previousMode = getsysvar_scrMode();
+    previousMode = getsysvar_scrMode(); // if user changes screen mode, we can reset after running
     vdp_logical_scr_dims(false);
     vdp_clear_screen();
-    //char* fname = aTextBuffer->fname_;      // this is name of current file
     
-    srand(time(NULL));  // seed with current time
-
-    // probably not needed
-    for(uint16_t loop = 0; loop < MAX_LINES; loop ++){
-        for(uint16_t loop2 = 0; loop2 < MAX_LEN; loop2 ++){
-        codeData[loop][loop2] = '\0';
-        }
-    }
+    srand(time(NULL));  // seed with current time or the RND feature will be the same every time run
 
     if(fname[0] == 0){
         printf("File not saved yet!");
         delay(2000);
         return;
     } 
-  
-  // There are several ways to have an "array of strings" in C, the simplest of 
-  // which is to have a 2D char array with each string stored at a row in the 
-  // 2D array.  This will result in "unused space" as not all rows may be used 
-  // if the file has fewer lines than MAX_LINES or if rows are of less length 
-  // than MAX_LEN, so we should think about whether we are OK with this or not.
-  // Another more sophisticated technique would be to use dynamic memory 
-  // allocation.
- 
+
   
   // Create a file pointer variable to allow us to access the file
   FILE *file;
   
-  // Open the file in reading mode, fopen() will return NULL if it fails to 
   // open the file...
   file = fopen(fname, "r");
 
-
   // If we've failed to open the file, exit with an error message and status, 
-  // returning 1 instead of returning 0 is a signal to the shell that something
-  // has gone wrong in the execution of our program.
   if (file == NULL)
   {
     printf("Error opening file.\n");
-
   }
 
     // numLines will keep track of the number of lines read so far from the file
@@ -97,6 +77,7 @@ void runcode(char* fname){
 
     while (numLines < MAX_LINES && fgets(codeData[numLines], MAX_LEN, file) != NULL) {
         size_t len = strlen(codeData[numLines]);
+        toUpperCase(codeData[numLines]);  // convert all commands to UPPER case for quick processing
         // Standard newline cleanup
         while (len > 0 && (codeData[numLines][len - 1] == '\n' || codeData[numLines][len - 1] == '\r')) {
             codeData[numLines][len - 1] = '\0';
@@ -109,6 +90,7 @@ void runcode(char* fname){
   fclose(file);
    
 // try to load a data file if exists
+// if it fails, the space will be empty
   FILE *datafile;
   datafile = fopen("kiss.data", "r");
 
@@ -119,7 +101,6 @@ void runcode(char* fname){
   } else {
         if(DEBUGGING) printf("failed to open data file");
   }
-
     fclose(datafile);
 
   
@@ -138,25 +119,25 @@ void runcode(char* fname){
         replace_char(curLine, '=',' ');
 
         //remove unwanted extra words
-        strip_substr(curLine, " to");
+        strip_substr(curLine, " TO");
         strip_substr(curLine, " =");
-        strip_substr(curLine, " with");
-        strip_substr(curLine, " from");
-        strip_substr(curLine, " by");
+        strip_substr(curLine, " WITH");
+        strip_substr(curLine, " FROM");
+        strip_substr(curLine, " BY");
         strip_substr(curLine, " *");
         strip_substr(curLine, " +");
         strip_substr(curLine, " -");
-        strip_substr(curLine, " upto");
-        strip_substr(curLine, " times");
+        strip_substr(curLine, " UPTO");
+        strip_substr(curLine, " TIMES");
 
-        strcpy(codeData[labelCounter],curLine);
+        strcpy(codeData[labelCounter],curLine); // put cleaned line back into array
 
         lcommand = strtok(curLine, " ");
         lparam1 = strtok(NULL, " ");
         lparam2 = strtok(NULL, " ");
         uint8_t labelNum;
 
-        if (strcmp(lcommand,"label") == 0 || strcmp(lcommand,"LABEL") == 0 ){
+        if (strcmp(lcommand,"LABEL") == 0 ){
             uint8_t pval = *lparam1;
             labelNum = atoi(lparam1);
             labels[labelNum] = labelCounter;
@@ -195,8 +176,12 @@ void runcode(char* fname){
 
         currentLine ++;     // inc line now, in case it gets changed by a GOTO
 
-        parseLine( command,  param1,  param2);
-        
+        // if line is empty, then don't waste time trying to match a command
+        if(command != NULL){ 
+            parseLine( command,  param1,  param2);
+        } else {
+            if(DEBUGGING) printf("Blank line\n");
+        }
 
         if(DEBUGGING){
             vdp_waitKeyUp();
@@ -252,54 +237,35 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"set") == 0 || strcmp(command,"SET") == 0 ){
-        uint8_t p2val = *param2;
-        uint8_t varOffset;
-        uint8_t leng = strlen(param2);
-        uint8_t value;
+    if (strcmp(command,"SET") == 0 ){
+        uint8_t value;                          // value to be set
+        uint8_t varOffset = lower(*param1);     // variable to be set
 
-        if(leng == 8){
-            value = (uint8_t) strtol(param2, NULL, 2);
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = value;
-
-            if(DEBUGGING) printf("SET offset %d to ascii value %d\n", varOffset, value);
-
-        }
-        else if(p2val == 39){ // must be a single quote, ie char
+        if(*param2 == 39){ // must be a single quote, ie char, 'k' for example will store ascii value of 'k'
             char v = param2[1];
-            uint8_t value = v;
-
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = value;
+            value = param2[1];
 
             if(DEBUGGING) printf("SET offset %d to ascii value %d\n", varOffset, value);
 
 
-        } else if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
+        } else if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];
 
-            uint8_t value = varSpace[var];
+            if(DEBUGGING) printf("SET offset %d to  %d\n", varOffset, value);
 
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = value;
+        } else if(strlen(param2) == 8){
+            value = (uint8_t) strtol(param2, NULL, 2);
 
-            if(DEBUGGING) printf("SET offset %d to value of offset %d which is %d\n", varOffset, var, value);
+            if(DEBUGGING) printf("SET offset %d to ascii value %d\n", varOffset, value);
 
-
-        } else { // else it is an int value
-            uint8_t value = atoi(param2);
-
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = value;
+        }   else  { // else it is an int value
+            value = atoi(param2);
 
             if(DEBUGGING) printf("SET offset %d to value %d\n", varOffset, value);
         }
+
+        // store the variable value
+        varSpace[varOffset] = value;
 
     }
 
@@ -312,49 +278,20 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"rnd") == 0 || strcmp(command,"RND") == 0 ){
-        uint8_t p2val = *param2;
-        uint8_t varOffset;
-        uint8_t leng = strlen(param2);
+    if (strcmp(command,"RND") == 0 ){
+   
         uint8_t value;
-        uint8_t rndValue;
 
-        if(p2val == 39){ // must be a single quote, ie char
-            char v = param2[1];
-            uint8_t value = v;
-            rndValue = rand() % value;
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = rndValue = rand() % value;;
-
-            if(DEBUGGING) printf("SET offset %d to random value %d\n", varOffset, rndValue);
-
-
-        } else if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-
-            uint8_t value = varSpace[var];
-            rndValue = rand() % value;
-
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = rndValue = rand() % value;;
-
-            if(DEBUGGING) printf("SET offset %d to random value %d\n", varOffset, rndValue);
-
-
+        if(*param2 > 57){ // must be a char, ie set to another variable
+             value = varSpace[lower(*param2)];
         } else { // else it is an int value
-            uint8_t value = atoi(param2);
-            rndValue = rand() % value;
-
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = rndValue = rand() % value;;
-
-            if(DEBUGGING) printf("SET offset %d to random value %d\n", varOffset, rndValue );
+             value = atoi(param2);
         }
+  
+        uint8_t rndValue = rand() % value;
+        varSpace[lower(*param1)] = rndValue;
 
+        if(DEBUGGING) printf("SET offset %d to random value %d\n", lower(*param1), rndValue );   
     }
     
 //-----------------------------------------------
@@ -365,39 +302,25 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
- if (strcmp(command,"vdp") == 0 || strcmp(command,"VDP") == 0 ){
+ if (strcmp(command,"VDP") == 0 ){
             uint8_t p1val = *param1;
             uint8_t leng = strlen(param1);
             uint8_t value;
             bool deb = DEBUGGING;
-            DEBUGGING = false;
+            DEBUGGING = false;  // cannot have debugging while sending VDP
+
             if(leng == 8){
                 value = (uint8_t) strtol(param1, NULL, 2);
-                if(DEBUGGING) printf("Send VDP BINARY value %d\n",value);
-                putchar(value);
             }
-            else if(p1val == 39){ // must be a single quote, ie char
-                char v = param1[1];
-                value = v;
-
-                if(DEBUGGING) printf("Send VDP char %d\n", value);
-                putchar(value);
-
+            else if(p1val == 39){ // must be a single quote, ie char to be sent in [1]
+                value = param1[1];
             } else if(p1val > 57){ // must be a char, ie set to another variable
-                uint8_t var = *param1;
-                var = lower(var);
-                value = varSpace[var];
-               
-                if(DEBUGGING) printf("Send VDP variable %d of value %d\n", var, value);
-                putchar(value);
-
+                value = varSpace[lower(*param1)];
             } else { // else it is an int value
                 value = atoi(param1);
-
-                if(DEBUGGING) printf("Send VDP value %d\n", value);
-                putchar(value);
-                
             }
+            putchar(value);
+
             DEBUGGING = deb;
        }
 
@@ -410,29 +333,26 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-   if (strcmp(command,"vdps") == 0 || strcmp(command,"VDPS") == 0 ){
-            uint8_t p1val = *param1;
-            uint8_t p2val = *param2;
+   if (strcmp(command,"VDPS") == 0 ){
             uint8_t offset;
             uint8_t count;
 
-            if(p1val > 57){ // must be a char, ie set to another variable
-                uint8_t var = *param1;
-                var = lower(var);
-                offset = varSpace[var];
+            // get offset
+            if(*param1 > 57){ // must be a char, ie set to another variable
+                offset = varSpace[lower(*param1)];
             } else { // else it is an int value
                 offset = atoi(param1);
             }
-            if(p2val > 57){ // must be a char, ie set to another variable
-                uint8_t var = *param2;
-                var = lower(var);
-                count = varSpace[var];
+
+            // get number of bytes to send
+            if(*param2 > 57){ // must be a char, ie set to another variable
+                count = varSpace[lower(*param2)];
             } else { // else it is an int value
                 count = atoi(param2);
             }
 
             for(uint8_t sendloop = 0; sendloop < count; sendloop ++){
-                putch(dataSpace[offset + sendloop]);
+                putchar(dataSpace[offset + sendloop]);
             }
 
        }
@@ -445,32 +365,29 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-   if (strcmp(command,"setdata") == 0 || strcmp(command,"SETDATA") == 0 ){
-            uint8_t p1val = *param1;
-            uint8_t p2val = *param2;
+   if (strcmp(command,"SETDATA") == 0 ){
+
             uint8_t offset;
             uint8_t value;
 
-            if(p1val > 57){ // must be a char, ie set to another variable
-                uint8_t var = *param1;
-                var = lower(var);
-                offset = varSpace[var];
+            if(*param1 > 57){ // must be a char, ie set to another variable
+                offset = varSpace[lower(*param1)];
             } else { // else it is an int value
                 offset = atoi(param1);
             }
-            if(p2val == 39){ // must be a single quote, ie char
+
+            if(*param2 == 39){ // must be a single quote, ie char
                 char v = param2[1];
                 value = v;
-            } else if(p2val > 57){ // must be a char, ie set to another variable
-                uint8_t var = *param2;
-                var = lower(var);
-                value = varSpace[var];
+            } else if(*param2 > 57){ // must be a char, ie set to another variable
+                value = varSpace[lower(*param2)];
             } else { // else it is an int value
                 value = atoi(param2);
             }
             
             dataSpace[offset] = value;
-           
+            if(DEBUGGING) printf("Set data at offset %d to %d\n", offset, value);
+ 
        }
 
 //-----------------------------------------------
@@ -481,16 +398,14 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-   if (strcmp(command,"loop") == 0 || strcmp(command,"LOOP") == 0 ){
-            uint8_t p1val = *param1;
+   if (strcmp(command,"LOOP") == 0 ){
+
             uint8_t loops;
 
             loopReturnLine = currentLine;
 
-            if(p1val > 57){ // must be a char, ie set to another variable
-                uint8_t var = *param1;
-                var = lower(var);
-                loops = varSpace[var];
+            if(*param1 > 57){ // must be a char, ie set to another variable
+                loops = varSpace[lower(*param1)];
             } else { // else it is an int value
                 loops = atoi(param1);
             }
@@ -504,7 +419,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-   if (strcmp(command,"endloop") == 0 || strcmp(command,"ENDLOOP") == 0 ){
+   if (strcmp(command,"ENDLOOP") == 0 ){
         if(loopMax > 0){
             // still running
             if(DEBUGGING) printf("Looping back\n");
@@ -524,23 +439,20 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-   if (strcmp(command,"getdata") == 0 || strcmp(command,"GETDATA") == 0 ){
+   if (strcmp(command,"GETDATA") == 0 ){
             uint8_t p1val = *param1;
             uint8_t p2val = *param2;
             uint8_t offset;
             uint8_t var;
 
-            if(p1val > 57){ // must be a char, ie set to another variable
-                var = *param1;
-                var = lower(var);
-                offset = varSpace[var];
+            if(*param1 > 57){ // must be a char, ie set to another variable
+                offset = varSpace[lower(*param1)];
             } else { // else it is an int value
                 offset = atoi(param1);
             }
 
-            if(p2val > 57){ // must be a char, ie set to another variable
-                var = *param2;
-                var = lower(var);
+            if(*param2 > 57){ // must be a char, ie set to another variable
+                var = lower(*param2);
             } 
             if(DEBUGGING) printf("Get data at offset %d and which is %d put into var %d\n", offset, dataSpace[offset], var);
             varSpace[var] = dataSpace[offset];
@@ -555,58 +467,26 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-   if (strcmp(command,"BEEP") == 0 || strcmp(command,"beep") == 0 ){
-            uint8_t p1val = *param1;
-            uint8_t p2val = *param2;
+   if (strcmp(command,"BEEP") == 0 ){
+
             uint8_t freq;
-            uint8_t var;
             uint8_t time;
 
-            if(p1val > 57){ // must be a char, ie set to another variable
-                var = *param1;
-                var = lower(var);
-                freq = varSpace[var];
+            if(*param1 > 57){ // must be a char, ie set to another variable
+                freq = varSpace[lower(*param1)];
             } else { // else it is an int value
                 freq = atoi(param1);
             }
 
-            if(p2val > 57){ // must be a char, ie set to another variable
-                var = *param2;
-                var = lower(var);
-                time = varSpace[var];
+            if(*param2 > 57){ // must be a char, ie set to another variable
+                time = varSpace[lower(*param2)];
             } else { // else it is an int value
-                time = atoi(param1);
+                time = atoi(param2);
             }
             if(DEBUGGING) printf("Beep at %d for %d \n", freq, time);
             vdp_audio_play_note(0, 127, freq * 10, time * 10);
        }
 
-//-----------------------------------------------
-//
-// RAW - experimental
-//
-//-----------------------------------------------
-
-    if (strcmp(command,"raw") == 0 || strcmp(command,"RAW") == 0 ){
-            uint8_t p1val = *param1;
-
-            if(p1val > 57){ // must be a char, ie set to another variable
-                uint8_t var = *param1;
-                var = lower(var);
-                uint8_t value = varSpace[var];
-               
-                if(DEBUGGING) printf("Send VDP variable %d of value %d\n", var, value);
-                putch(value);
-
-            } else { // else it is an int value
-                uint8_t value = atoi(param1);
-
-                if(DEBUGGING) printf("Send VDP value %d\n", value);
-                putch(value);
-                
-            }
-
-       }
 
 //-----------------------------------------------
 //
@@ -617,17 +497,15 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"add") == 0 || strcmp(command,"ADD") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"ADD") == 0 ){
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            uint8_t value = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+   
+            uint8_t value = varSpace[lower(*param1)];
 
-            uint8_t varOffest = *param2;
-            varOffest = lower(varOffest);
+            uint8_t varOffest = lower(*param2);
             uint16_t added = value + varSpace[varOffest]; // add two numbers
+
             if(added > 255){
                 added -= 256;
                 varSpace[varOffest] = added;
@@ -642,10 +520,10 @@ void parseLine(char *command, char *param1, char *param2){
 
         } else { // else it is an int value
             uint8_t value = atoi(param1);
-            uint8_t varOffest = *param2;
-            //varOffest = varOffest - 97;
-            varOffest = lower(varOffest);
+
+            uint8_t varOffest = lower(*param2);
             uint16_t added = value + varSpace[varOffest]; // add two numbers
+
             if(added > 255){
                 added -= 256;
                 varSpace[varOffest] = added;
@@ -654,7 +532,6 @@ void parseLine(char *command, char *param1, char *param2){
             } else {
                 varSpace[varOffest] = added;
                 varSpace[carryChar] = 0;        // no overrun, less that 256
-                //if(DEBUGGING) printf("IN BOUNDS\n");
             }
             
             if(DEBUGGING) printf("ADD %d to var offset %d totalling %d\n", value, varOffest, added);
@@ -669,46 +546,29 @@ void parseLine(char *command, char *param1, char *param2){
 //  adds variable1 or value to variable2
 //  result 'a' has x256 overrun
 
-    if (strcmp(command,"mul") == 0 || strcmp(command,"MUL") == 0 ){
-        uint8_t p1val = *param2;
+    if (strcmp(command,"MUL") == 0 ){
+        uint8_t varOffset;
+        uint8_t value;
+        uint16_t timesed;
+        uint8_t factor;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            uint8_t value = varSpace[var];
-
-            uint8_t varOffest = *param1;
-            varOffest = lower(varOffest);
-            uint16_t timesed = value * varSpace[varOffest]; // mult two numbers
-            if(timesed > 255){
-                uint8_t factor = timesed / 256;
-                varSpace[varOffest] = timesed%256;
-                varSpace[carryChar] = factor;        // overrun
-            } else {
-                varSpace[varOffest] = timesed;
-                varSpace[carryChar] = 0;        // no overrun, less that 256
-            }
-            if(DEBUGGING) printf("Multiplied variable %d by %d giving %d\n",  varOffest, value, timesed);
-            
-
-
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];
         } else { // else it is an int value
-            uint8_t value = atoi(param2);
-            uint8_t varOffest = *param1;
-            varOffest = lower(varOffest);
-
-            uint16_t timesed = value * varSpace[varOffest]; // mult two numbers
-            if(timesed > 255){
-                uint8_t factor = timesed / 256;
-                varSpace[varOffest] = timesed%256;
-                varSpace[carryChar] = factor;        // overrun
-            } else {
-                varSpace[varOffest] = timesed;
-                varSpace[carryChar] = 0;        // no overrun, less that 256
-            }
-            
-            if(DEBUGGING) printf("Multiplied variable %d by %d giving %d\n",  varOffest, value, timesed);
+            value = atoi(param2);
         }
+        varOffset = lower(*param1);
+        timesed = value * varSpace[varOffset]; // mult two numbers
+        if(timesed > 255){
+            factor = timesed / 256;
+            varSpace[varOffset] = timesed%256;
+            varSpace[carryChar] = factor;        // overrun
+        } else {
+            varSpace[varOffset] = timesed;
+            varSpace[carryChar] = 0;        // no overrun, less that 256
+        }
+    
+        if(DEBUGGING) printf("Multiplied variable %d by %d giving %d\n",  varOffset, value, timesed);
         
     }
 
@@ -721,42 +581,24 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"div") == 0 || strcmp(command,"DIV") == 0 ){
-        uint8_t p1val = *param2;
-
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            uint8_t value = varSpace[var];
-
-            uint8_t varOffest = *param1;
-            varOffest = lower(varOffest);              
-            
-            uint16_t divided = varSpace[varOffest] / value; // div two numbers
-            uint16_t remainder = varSpace[varOffest] % value; // get mod
-            
-            varSpace[varOffest] = divided;
-            varSpace[carryChar] = remainder;
-
-            if(DEBUGGING) printf("Divided variable %d by %d giving %d mod %d\n",  varOffest, value, divided, remainder);
-            
+    if (strcmp(command,"DIV") == 0 ){
+        uint8_t value;
+        uint8_t varOffest;
 
 
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];         
         } else { // else it is an int value
-            uint8_t value = atoi(param2);
-            uint8_t varOffest = *param1;
-            varOffest = lower(varOffest);
-
-            uint16_t divided = varSpace[varOffest] / value; // div two numbers
-            uint16_t remainder = varSpace[varOffest] % value; // get mod
-            
-            varSpace[varOffest] = divided;
-            varSpace[carryChar] = remainder;
-            
-            
-            if(DEBUGGING) printf("Divided variable %d by %d giving %d mod %d\n",  varOffest, value, divided, remainder);
+            value = atoi(param2);
         }
+        varOffest = lower(*param1); 
+        uint16_t divided = varSpace[varOffest] / value; // div two numbers
+        uint16_t remainder = varSpace[varOffest] % value; // get mod
         
+        varSpace[varOffest] = divided;
+        varSpace[carryChar] = remainder;
+
+        if(DEBUGGING) printf("Divided variable %d by %d giving %d mod %d\n",  varOffest, value, divided, remainder);
     }
 
 //-----------------------------------------------
@@ -768,47 +610,31 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"sub") == 0 || strcmp(command,"SUB") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"SUB") == 0 ){
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            uint8_t value = varSpace[var];
+        uint8_t value;
+        uint8_t varOffest;
+        int16_t subbed;
 
-            uint8_t varOffest = *param2;
-            varOffest = lower(varOffest);
-            int16_t subbed = varSpace[varOffest] - value; // add two numbers
-            if(subbed < 0){
-                subbed += 256;
-                varSpace[varOffest] = subbed;
-                varSpace[carryChar] = 1;        // overrun
-            } else {
-                varSpace[varOffest] = subbed;
-                varSpace[carryChar] = 0;        // no overrun, less that 256
-            }
-            
-            if(DEBUGGING) printf("SUB %d from var offset %d totalling %d\n", value, varOffest, subbed);
-
-
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
         } else { // else it is an int value
-            uint8_t value = atoi(param1);
-            uint8_t varOffest = *param2;
-            varOffest = lower(varOffest);
-            int16_t subbed = varSpace[varOffest] - value; // add two numbers
-            if(subbed < 0){
-                subbed += 256;
-                varSpace[varOffest] = subbed;
-                varSpace[carryChar] = 1;        // overrun
-                if(DEBUGGING) printf("OVERRUN carry set in 'a'\n");
-            } else {
-                varSpace[varOffest] = subbed;
-                varSpace[carryChar] = 0;        // no overrun, less that 256
-                if(DEBUGGING) printf("IN BOUNDS\n");
-            }
-            
-            if(DEBUGGING) printf("SUB %d from var offset %d totalling %d\n", value, varOffest, subbed);
+            value = atoi(param1);
         }
+
+        varOffest = lower(*param2);
+        subbed = varSpace[varOffest] - value; // sub two numbers
+
+        if(subbed < 0){
+            subbed += 256;
+            varSpace[varOffest] = subbed;
+            varSpace[carryChar] = 1;        // overrun
+        } else {
+            varSpace[varOffest] = subbed;
+            varSpace[carryChar] = 0;        // no overrun, less that 256
+        }
+        
+        if(DEBUGGING) printf("SUB %d from var offset %d totalling %d\n", value, varOffest, subbed);
 
     }
 
@@ -827,63 +653,35 @@ void parseLine(char *command, char *param1, char *param2){
 // param 1 is the base variable 
 // param 2 is what we compare it with (num or var)
 
-    if (strcmp(command,"comp") == 0 || strcmp(command,"COMP") == 0 ){
-        uint8_t p2val = *param2;
+    if (strcmp(command,"COMP") == 0 ){
 
-        if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            uint8_t compVar = varSpace[var];
+        uint8_t compVar;
+        uint8_t varOffest;
+        uint8_t baseVar;
 
-            uint8_t varOffest = *param1;
-            varOffest = lower(varOffest);
-            uint8_t baseVar = varSpace[varOffest];
-
-            int16_t subbed = baseVar - compVar; // sub two numbers
-
-             if(subbed == 0){
-                varSpace[carryChar] = 0;
-                varSpace[resultChar] = 0;       
-                if(DEBUGGING) printf("compared the same\n");
-            } else if(subbed < 0){
-                subbed += 256;
-                varSpace[resultChar] = subbed;
-                varSpace[carryChar] = 255;        // overrun
-            } else {
-                varSpace[resultChar] = subbed;
-                varSpace[carryChar] = 0;        // no overrun, less that 256
-            }
-            
-            if(DEBUGGING) printf("COM %d with %d giving %d\n", baseVar, compVar, subbed);
-
-
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            compVar = varSpace[lower(*param2)];
         } else { // else it is an int value
-            uint8_t compVar = atoi(param2);
-
-            uint8_t varOffest = *param1;
-            varOffest = lower(varOffest);
-            uint8_t baseVar = varSpace[varOffest];
-
-            int16_t subbed = baseVar - compVar; // sub two numbers
-
-            if(subbed == 0){
-                varSpace[carryChar] = 0;
-                varSpace[resultChar] = 0;       
-                if(DEBUGGING) printf("compared the same\n");
-            } else if(subbed < 0){
-                subbed += 256;
-                varSpace[carryChar] = 255;
-                varSpace[resultChar] = subbed;        // overrun
-                if(DEBUGGING) printf("OVERRUN carry set in 'a'\n");
-            } else {
-                varSpace[carryChar] = 0;
-                varSpace[resultChar] = subbed;        // no overrun, less that 256
-                if(DEBUGGING) printf("IN BOUNDS\n");
-            }
-            
-            if(DEBUGGING) printf("COM %d from with %d giving %d\n", baseVar, compVar, subbed);
+            compVar = atoi(param2);
         }
+        baseVar = varSpace[lower(*param1)];
 
+        int16_t subbed = baseVar - compVar; // sub two numbers
+
+        if(subbed == 0){
+            varSpace[carryChar] = 0;
+            varSpace[resultChar] = 0;       
+            if(DEBUGGING) printf("compared the same\n");
+        } else if(subbed < 0){
+            subbed += 256;
+            varSpace[resultChar] = subbed;
+            varSpace[carryChar] = 255;        // overrun
+        } else {
+            varSpace[resultChar] = subbed;
+            varSpace[carryChar] = 0;        // no overrun, less that 256
+        }
+        
+        if(DEBUGGING) printf("COM %d with %d giving %d\n", baseVar, compVar, subbed);
     }
 
 //-----------------------------------------------
@@ -894,23 +692,14 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"delay") == 0 || strcmp(command,"DELAY") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"DELAY") == 0 ){
         uint8_t value;
-
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            value = varSpace[var];
-
-            delay(value * 10);
-
-
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
         } else { // else it is an int value
             value = atoi(param1);
-            delay(value * 10);
-            
         }
+        delay(value * 10);
         if(DEBUGGING) printf("DELAY for %d h/s\n", value);
     }
   
@@ -921,14 +710,12 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"INK") == 0 || strcmp(command,"ink") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"INK")  == 0 ){
+  
         uint8_t value;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            value = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
         } else { // else it is an int value
             value = atoi(param1);           
         }
@@ -944,14 +731,11 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"PEN") == 0 || strcmp(command,"pen") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"PEN")  == 0 ){
         uint8_t value;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            value = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
         } else { // else it is an int value
             value = atoi(param1);           
         }
@@ -967,34 +751,23 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"PRINTNUM") == 0 || strcmp(command,"printnum") == 0 ){
-        uint8_t p1val = *param1;
-        uint8_t p2val = *param2;
+    if (strcmp(command,"PRINTNUM") == 0){
+   
         uint8_t value;
         
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            value = varSpace[var];
-            if(DEBUGGING) printf("Print number in offest %d which is %d\n", var, value);
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
+            if(DEBUGGING) printf("Print number in offest %d which is %d\n", lower(*param1), value);
         } else { // else it is an int value
             value = atoi(param1);     
             if(DEBUGGING) printf("Print number %d\n",  value);      
         }
 
-        if (strcmp(param2,"HEX") == 0 || strcmp(param2,"hex") == 0 ){
-                //printf("print hex\n");
-                //printf("mode= %s\n",param2);
+        if (strcmp(param2,"HEX") == 0){
                 printf("%02X",value);
-        } else if (strcmp(param2,"BIN") == 0 || strcmp(param2,"bin") == 0 ){
-
-                //printf("print binary\n");
-                //printf("mode= %s\n",param2);
-
+        } else if (strcmp(param2,"BIN")  == 0 ){
                 printf(BYTE_TO_BINARY_PATTERN , BYTE_TO_BINARY(value));
         } else {
-                //printf("print decimal\n");
-                //printf("mode= %s\n",param2);
                 printf("%d",value);
         }      
     }
@@ -1006,14 +779,11 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"MODE") == 0 || strcmp(command,"mode") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"MODE") == 0 ){
         uint8_t value;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            value = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
         } else { // else it is an int value
             value = atoi(param1);           
         }
@@ -1029,10 +799,9 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"DEBUG") == 0 || strcmp(command,"debug") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"DEBUG") == 0 ){
 
-        if(p1val == '0'){
+        if(*param1 == '0'){
             DEBUGGING = false;
         } else{
             DEBUGGING = true;
@@ -1047,10 +816,9 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"CURSOR") == 0 || strcmp(command,"cursor") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"CURSOR") == 0  ){
 
-        if(p1val == '0'){
+        if(*param1 == '0'){
             vdp_cursor_enable(false);
         } else {
             vdp_cursor_enable(true);
@@ -1065,7 +833,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"exit") == 0 || strcmp(command,"EXIT") == 0 ){
+    if (strcmp(command,"EXIT") == 0 ){
         running = false;
     }
 
@@ -1076,7 +844,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"print") == 0 || strcmp(command,"PRINT") == 0 ){
+    if (strcmp(command,"PRINT") == 0 ){
         if(DEBUGGING) printf("Print text: %s", param1);
         mos_putstring(param1);
     }
@@ -1088,7 +856,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"cr") == 0 || strcmp(command,"CR") == 0 ){
+    if (strcmp(command,"CR") == 0 ){
         if(DEBUGGING) printf("Printing CR");
         printf("\n");
     }
@@ -1100,7 +868,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"spc") == 0 || strcmp(command,"SPC") == 0  || strcmp(command,"SPACE") == 0  || strcmp(command,"space") == 0 ){
+    if (strcmp(command,"SPC") == 0 ){
         if(DEBUGGING) printf("Printing SPACE");
         printf(" ");
     }
@@ -1112,7 +880,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"cls") == 0 || strcmp(command,"CLS") == 0 ){
+    if (strcmp(command,"CLS") == 0 ){
         if(DEBUGGING) printf("Clearing screen");
         vdp_clear_screen();
     }
@@ -1125,24 +893,18 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"tabto") == 0 || strcmp(command,"TABTO") == 0 ){
-        uint8_t p1val = *param1;
-        uint8_t p2val = *param2;
+    if (strcmp(command,"TABTO") == 0 ){
         uint8_t xpos;
         uint8_t ypos;
         
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            xpos = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            xpos = varSpace[lower(*param1)];
         } else { // else it is an int value
             xpos = atoi(param1);
         }
 
-        if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            ypos = varSpace[var];
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            ypos = varSpace[lower(*param2)];
         } else { // else it is an int value
             ypos = atoi(param2);
         }
@@ -1160,24 +922,20 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"plot") == 0 || strcmp(command,"PLOT") == 0 ){
+    if (strcmp(command,"PLOT") == 0 ){
         uint8_t p1val = *param1;
         uint8_t p2val = *param2;
         uint8_t xpos;
         uint8_t ypos;
         
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            xpos = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            xpos = varSpace[lower(*param1)];
         } else { // else it is an int value
             xpos = atoi(param1);
         }
 
-        if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            ypos = varSpace[var];
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            ypos = varSpace[lower(*param2)];
         } else { // else it is an int value
             ypos = atoi(param2);
         }
@@ -1195,24 +953,18 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"lineto") == 0 || strcmp(command,"LINETO") == 0 ){
-        uint8_t p1val = *param1;
-        uint8_t p2val = *param2;
+    if (strcmp(command,"LINETO") == 0 ){
         uint8_t xpos;
         uint8_t ypos;
         
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            xpos = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+           xpos = varSpace[lower(*param1)];
         } else { // else it is an int value
             xpos = atoi(param1);
         }
 
-        if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            ypos = varSpace[var];
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            ypos = varSpace[lower(*param2)];
         } else { // else it is an int value
             ypos = atoi(param2);
         }
@@ -1229,24 +981,18 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"moveto") == 0 || strcmp(command,"MOVETO") == 0 ){
-        uint8_t p1val = *param1;
-        uint8_t p2val = *param2;
+    if (strcmp(command,"MOVETO") == 0 ){
         uint8_t xpos;
         uint8_t ypos;
         
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            xpos = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            xpos = varSpace[lower(*param1)];
         } else { // else it is an int value
             xpos = atoi(param1);
         }
 
-        if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            ypos = varSpace[var];
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            ypos = varSpace[lower(*param2)];
         } else { // else it is an int value
             ypos = atoi(param2);
         }
@@ -1261,15 +1007,11 @@ void parseLine(char *command, char *param1, char *param2){
 // process GOTO command
 //  GOTO <variable1/value>
 
-    if (strcmp(command,"goto") == 0 || strcmp(command,"GOTO") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"GOTO") == 0 ){
         uint8_t value;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            value = varSpace[var];
-
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
         } else { // else it is an int value
             value = atoi(param1);
         }
@@ -1285,14 +1027,11 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"call") == 0 || strcmp(command,"CALL") == 0 ){
-        uint8_t p1val = *param1;
+    if (strcmp(command,"CALL") == 0 ){
         uint8_t value;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            value = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
 
         } else { // else it is an int value
             value = atoi(param1);
@@ -1314,35 +1053,26 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"callif") == 0 || strcmp(command,"CALLIF") == 0 ){
-        uint8_t p1val = *param1;
-        uint8_t p2val = *param2;
+    if (strcmp(command,"CALLIF") == 0 ){
+
         uint8_t labelValue;
         uint8_t checkValue;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            labelValue = varSpace[var];
-
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            labelValue = varSpace[lower(*param1)];
         } else { // else it is an int value
             labelValue = atoi(param1);
         }
 
-        if(p2val == 39){ // must be a single quote, ie char
+        if(*param2 == 39){ // must be a single quote, ie char
                 char v = param2[2];
                 checkValue = (uint8_t)v;
-        } else  if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            checkValue = varSpace[var];
-
+        } else  if(*param2 > 57){ // must be a char, ie set to another variable
+            checkValue = varSpace[lower(*param2)];;
         } else { // else it is an int value
             checkValue = atoi(param2);
         }
         if(DEBUGGING) printf("CALLIF LABEL %d line %d checkValue %d a: %d\n", labelValue, labels[labelValue], checkValue, varSpace[resultChar]);
-
-       
 
         if(varSpace[resultChar] == checkValue){
 
@@ -1363,13 +1093,9 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"ret") == 0 || strcmp(command,"RET") == 0 ){
+    if (strcmp(command,"RET") == 0 ){
         uint16_t returnLine = returnStack[returnStackIndex];
  
-        // for(uint8_t g=0;g<4;g++){
-        //     printf("RET returnStack[%d]=%d\n",g,returnStack[g] );
-        // }
-
         currentLine = returnLine;
 
         if(DEBUGGING) printf("RET to stack index %d which is line %d \n", returnStackIndex, returnLine);
@@ -1384,26 +1110,19 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"gotoif") == 0 || strcmp(command,"GOTOIF") == 0 ){
-        uint8_t p1val = *param1;
-        uint8_t p2val = *param2;
+    if (strcmp(command,"GOTOIF") == 0 ){
         uint8_t labelValue;
         uint8_t checkValue;
 
-        if(p1val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param1;
-            var = lower(var);
-            labelValue = varSpace[var];
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            labelValue = varSpace[lower(*param1)];
 
         } else { // else it is an int value
             labelValue = atoi(param1);
         }
 
-        if(p2val > 57){ // must be a char, ie set to another variable
-            uint8_t var = *param2;
-            var = lower(var);
-            checkValue = varSpace[var];
-
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            checkValue = varSpace[lower(*param2)];
         } else { // else it is an int value
             checkValue = atoi(param2);
         }
@@ -1422,11 +1141,9 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"key") == 0 || strcmp(command,"KEY") == 0 ){
-
+    if (strcmp(command,"KEY") == 0 ){
         uint8_t result = vdp_getKeyCode();
         varSpace[resultChar] = result;
-        //printf("KEY pressed was %d \n", result );
         if(DEBUGGING) printf("KEY pressed was %d \n", result );
     }
 
@@ -1438,7 +1155,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"wait") == 0 || strcmp(command,"WAIT") == 0 ){
+    if (strcmp(command,"WAIT") == 0 ){
         vdp_waitKeyUp();
         vdp_waitKeyDown();
     }
@@ -1451,7 +1168,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"printvars") == 0 || strcmp(command,"PRINTVARS") == 0 ){
+    if (strcmp(command,"PRINTVARS") == 0 ){
         for(uint8_t asc = 0; asc < 28; asc++){
             printf("%c = %d\n", (char)asc+63,  varSpace[asc]);
         }
@@ -1465,7 +1182,7 @@ void parseLine(char *command, char *param1, char *param2){
 //
 //-----------------------------------------------
 
-    if (strcmp(command,"input") == 0 || strcmp(command,"INPUT") == 0 ){
+    if (strcmp(command,"INPUT") == 0 ){
         
         char buffer[20];
         char *endptr;
@@ -1477,9 +1194,7 @@ void parseLine(char *command, char *param1, char *param2){
         if(val >255) val =0;
 
         if(param1 != NULL){
-            uint8_t varOffset = *param1;
-            varOffset = lower(varOffset);
-            varSpace[varOffset] = val;
+            varSpace[lower(*param1)] = val;
         } else {
             varSpace[resultChar] = val;
         }
@@ -1513,11 +1228,11 @@ void parseLine(char *command, char *param1, char *param2){
 
 
 uint8_t lower(uint8_t num){
-    if (num >94) {
-        return num - 95;
-    } else {
-        return num - 63;
-    };
+    // if (num >94) {
+    //      return num - 95;
+    // } else {
+       return num - 63;
+    // };
 }
 
 //-----------------------------------------------
@@ -1556,6 +1271,16 @@ void replace_char(char *str, char old_char, char new_char) {
             *str = new_char;
         }
         str++;
+    }
+}
+
+
+//-----------------------------------------------
+// convert to UPPER case
+
+void toUpperCase(char *str) {
+    for (int i = 0; str[i] != '\0'; i++) {
+        str[i] = toupper((unsigned char)str[i]);
     }
 }
 
