@@ -190,7 +190,7 @@ Waits for user to press and release any key.
 
 
 `BEEP <offset/variable> <value/variable>`  
-Beep <freq> for <time>
+Beep at freq (/10) for time (c/s)
 
 `INPUT <variable>`
 Requests numerical input from user.
