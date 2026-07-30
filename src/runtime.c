@@ -5,7 +5,7 @@
 #include <agon/vdp.h>
 #include <agon/mos.h>
 #include <agon/timer.h>
-
+#include <time.h>
 #include "runtime.h"
 
 // runtime part of code
@@ -51,6 +51,8 @@ void runcode(char* fname){
     vdp_clear_screen();
     //char* fname = aTextBuffer->fname_;      // this is name of current file
     
+    srand(time(NULL));  // seed with current time
+
     // probably not needed
     for(uint16_t loop = 0; loop < MAX_LINES; loop ++){
         for(uint16_t loop2 = 0; loop2 < MAX_LEN; loop2 ++){
@@ -813,13 +815,17 @@ void parseLine(char *command, char *param1, char *param2){
 //-----------------------------------------------
 //
 //  process COMPare command
-//  COMP <variable1/value> <variable2>
-//  subtracts variable1 or value from variable2
+//  COMP <variable1> <variable2/value>
+//  subtracts variable2 or value from variable1
+//  leaves variables intact
 //  result '@' has difference
 //  result '?' has 255 if neg, 0 if positive
 // compare var with var, or var with number
 //
 //-----------------------------------------------
+
+// param 1 is the base variable 
+// param 2 is what we compare it with (num or var)
 
     if (strcmp(command,"comp") == 0 || strcmp(command,"COMP") == 0 ){
         uint8_t p2val = *param2;
@@ -827,34 +833,45 @@ void parseLine(char *command, char *param1, char *param2){
         if(p2val > 57){ // must be a char, ie set to another variable
             uint8_t var = *param2;
             var = lower(var);
-            uint8_t value = varSpace[var];
+            uint8_t compVar = varSpace[var];
 
             uint8_t varOffest = *param1;
             varOffest = lower(varOffest);
-            int16_t subbed = varSpace[varOffest] - value; // add two numbers
-            if(subbed < 0){
+            uint8_t baseVar = varSpace[varOffest];
+
+            int16_t subbed = baseVar - compVar; // sub two numbers
+
+             if(subbed == 0){
+                varSpace[carryChar] = 0;
+                varSpace[resultChar] = 0;       
+                if(DEBUGGING) printf("compared the same\n");
+            } else if(subbed < 0){
                 subbed += 256;
-                varSpace[varOffest] = subbed;
-                varSpace[resultChar] = 255;        // overrun
+                varSpace[resultChar] = subbed;
+                varSpace[carryChar] = 255;        // overrun
             } else {
-                varSpace[varOffest] = subbed;
-                varSpace[resultChar] = 0;        // no overrun, less that 256
+                varSpace[resultChar] = subbed;
+                varSpace[carryChar] = 0;        // no overrun, less that 256
             }
             
-            if(DEBUGGING) printf("COM %d from var offset %d totalling %d\n", value, varOffest, subbed);
+            if(DEBUGGING) printf("COM %d with %d giving %d\n", baseVar, compVar, subbed);
 
 
         } else { // else it is an int value
-            uint8_t value = atoi(param2);
+            uint8_t compVar = atoi(param2);
+
             uint8_t varOffest = *param1;
             varOffest = lower(varOffest);
-            int16_t subbed = varSpace[varOffest] - value; // add two numbers
+            uint8_t baseVar = varSpace[varOffest];
+
+            int16_t subbed = baseVar - compVar; // sub two numbers
+
             if(subbed == 0){
                 varSpace[carryChar] = 0;
                 varSpace[resultChar] = 0;       
                 if(DEBUGGING) printf("compared the same\n");
             } else if(subbed < 0){
-                //subbed += 256;
+                subbed += 256;
                 varSpace[carryChar] = 255;
                 varSpace[resultChar] = subbed;        // overrun
                 if(DEBUGGING) printf("OVERRUN carry set in 'a'\n");
@@ -864,7 +881,7 @@ void parseLine(char *command, char *param1, char *param2){
                 if(DEBUGGING) printf("IN BOUNDS\n");
             }
             
-            if(DEBUGGING) printf("COM %d from var offset %d totalling %d\n", value, varOffest, subbed);
+            if(DEBUGGING) printf("COM %d from with %d giving %d\n", baseVar, compVar, subbed);
         }
 
     }
