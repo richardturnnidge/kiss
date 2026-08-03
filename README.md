@@ -58,6 +58,7 @@ COMP x t
 COMP x with 6  
 COMP x to y
 
+
 A 256 byte memory store is available. By default, this is loaded at runtime from a local file, or will be empty if file loading failed.  
 
 `GETDATA <offset/variable> <variable>`   
@@ -160,6 +161,9 @@ Print a space
 `CURSOR <value>`  
 Turn cursor off/on (0 or 1)
 
+`SWAP`  
+SWAP screen for buffer modes 128+  
+
 
 ## Plotting Line Graphics
 
@@ -178,6 +182,9 @@ Move plot position to x,y
 
 `LINETO <value/variable> <value/variable>`  
 Move plot position to x,y
+
+`CIRCLE <value/variable> <value/variable> <value/variable>`  
+Plot a filled circle at position to x,y with radius.  
 
 
 ## Interaction with user
@@ -214,6 +221,10 @@ Sends a series of bytes to VDP from data store.
 `DEBUG <value>`  
 Turn debug off/on (0 or 1).
 
+`PRINTVARS`  
+Print out all variable values.  
+Useful for quick debug.
+
 
 
 
@@ -246,3 +257,19 @@ Every command or data is seperated by space/s.
 A new code line starts after a CR.  
 
 Any line's command not recognised will be ignored.
+
+# to do... bitwise operations
+I don't know why, but seems a thing it should do.  
+Make sure other SET, MATHS and COMP operations deal with binary values.  
+
+`OR <var> <var/value>`
+Var A = A or B  
+
+`AND <var> <var/value>`
+Var A = A and B  
+
+`NOT <var>`
+Var A = not A
+
+`XOR <var> <var/value>`
+Var A = A xor B  
