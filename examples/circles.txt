@@ -1,0 +1,14 @@
+// Example of random circles
+// Press ESC to exit
+
+MODE 8
+
+LABEL 1
+    RND C 63
+    PEN C
+    RND X 250
+    RND Y 250
+    RND R 50
+    CIRCLE X Y R
+GOTO 1
+EXIT
