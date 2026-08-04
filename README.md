@@ -127,6 +127,32 @@ MUL a b
 `DIV <variable1/value> <variable2>`  
 Divides variable1 or value by variable2. Result is stored in variable1 as rounded down integer. Mod is stored in 'carry flag'
 
+
+## Binary Operations
+
+`OR <variable1> <variable2/value>`  
+ORs variable1 with variable2/value.  
+Result is in first variable.  
+
+
+`AND <variable1> <variable2/value>`
+ANDs variable1 with variable2/value.  
+Result is in first variable.  
+
+
+`XOR <variable1> <variable2/value>`  
+XORs variable1 with variable2/value.  
+Result is in first variable.  
+
+
+`NOT <variable1>`  
+NOTs variable1.  
+Result is in variable1.  
+
+
+
+
+
 ## Text and Display
 
 `CLS`  
@@ -172,20 +198,27 @@ Sets ink colour for PLOT commands.
 0-63 is foreground ink.  
 
 
-`PLOT <value/variable> <value/variable>`  
+`PLOT <value/variable> <value/variable> <16bit flag>`  
 Plot point at x,y.  
 Only basic lines are currently implemented as commands, with X and Y limited to 255.  
 Full functionality can be achieved by sending raw VDP commands.
 
-`MOVETO <value/variable> <value/variable>`  
+`MOVETO <value/variable> <value/variable> <16bit flag>`  
 Move plot position to x,y
 
-`LINETO <value/variable> <value/variable>`  
+`LINETO <value/variable> <value/variable> <16bit flag>`  
 Move plot position to x,y
 
-`CIRCLE <value/variable> <value/variable> <value/variable>`  
+`CIRCLE <value/variable> <value/variable> <value/variable> <16bit flag>`  
 Plot a filled circle at position to x,y with radius.  
 
+
+NOTE: VDP PLOT calls could use values over 255 depending on the screen mode. To assist with values greater than 1 byte in size, an optional flag can be set to use the X and Y variables as the higher byte for each coordinate.  The default is no flag set.  
+eg.   
+`Set X 2`  
+`SET Y 0`  
+`PLOT 10, 20 , 1`  
+would yield a coordinate of: `10 +(256 *2), 20 + (256 * 0)` ie, `PLOT 522, 20`.  
 
 ## Interaction with user
 
