@@ -14,6 +14,7 @@
 #include <time.h>
 #include "runtime.h"
 #include <ctype.h>
+#include "agon/joystick.h"
 
 // runtime part of code
 #define MAX_LINES 2048                    // max number of lines in our program
@@ -68,6 +69,13 @@ char *commandList[] = {
     "MUL",
     "DIV",
 
+    "OR",
+    "AND",
+    "XOR",
+    "NOT",
+    "SHIFTLEFT",
+    "SHIFTRIGHT",
+
     "CLS",
     "INK",
     "MODE",
@@ -87,6 +95,7 @@ char *commandList[] = {
     
 
     "KEY",
+    "JOY",
     "WAIT",
     "BEEP",
     "INPUT",
@@ -124,6 +133,13 @@ enum cmds {
     MUL,
     DIV,
 
+    OR,
+    AND,
+    XOR,
+    NOT,
+    SHIFTLEFT,
+    SHIFTRIGHT,
+
     CLS,
     INK,
     MODE,
@@ -142,6 +158,7 @@ enum cmds {
     CIRCLE,
 
     KEY,
+    JOY,
     WAIT,
     BEEP,
     INPUT,
@@ -194,6 +211,7 @@ uint8_t beeptime;
 uint8_t count;
 uint8_t leng;
 uint8_t radius;
+uint16_t joy;
 char buffer[20];
 char *endptr;
 int val;
@@ -208,6 +226,8 @@ void runcode(char* fname){
     vdp_clear_screen();
     
     srand(time(NULL));  // seed with current time or the RND feature will be the same every time run
+
+    resetJoysticks(); // reset all joystick ports to their input state
 
     if(fname[0] == 0){
         printf("File not saved yet!");
@@ -349,6 +369,11 @@ void runcode(char* fname){
   running = true;
   currentLine = 0;
 
+// rest all varaibles
+    for(uint8_t v = 0; v < 28; v++){
+        varSpace[v] = 0;
+    }
+
     if(DEBUGGING){
         printf("Running code with %d lines\n\n", numLines);
     }
@@ -363,12 +388,14 @@ void runcode(char* fname){
         char *param1;
         char *param2;
         char *param3;
+        char *param4;
 
         // split line into command and params
         command = strtok(src, " ");
         param1 = strtok(NULL, " ");
         param2 = strtok(NULL, " ");
         param3 = strtok(NULL, " ");
+        param4 = strtok(NULL, " ");
 
         if(DEBUGGING) printf("Line %d: ",currentLine);
 
@@ -376,7 +403,7 @@ void runcode(char* fname){
 
         // if line is empty, then don't waste time trying to match a command
         if(command != NULL){ 
-            parseLine( command,  param1,  param2,  param3);
+            parseLine( command,  param1,  param2,  param3, param4);
         } else {
             if(DEBUGGING) printf("Blank line\n");
         }
@@ -425,7 +452,7 @@ Here we step though all possible commands and act on them
 
 ------------------------------------------------- */
 
-void parseLine(char *command, char *param1, char *param2, char *param3){
+void parseLine(char *command, char *param1, char *param2, char *param3, char *param4){
 
 uint8_t lineCmd = commandIndex[currentLine - 1];
 
@@ -1001,8 +1028,6 @@ switch (lineCmd) {
 
     case  DIV:
 
-
-
         if(*param2 > 57){ // must be a char, ie set to another variable
             value = varSpace[lower(*param2)];         
         } else { // else it is an int value
@@ -1017,6 +1042,162 @@ switch (lineCmd) {
 
         if(DEBUGGING) printf("Divided variable %d by %d giving %d mod %d\n",  varOffset, value, divided, leftOver);
         break;
+
+
+//-----------------------------------------------
+//-----------------------------------------------
+//
+// Binary Operations
+//
+// `OR <variable1/value> <variable2>`  
+// `AND <variable1/value> <variable2>`  
+// `XOR <variable1/value> <variable2>`  
+// `NOT <variable1/value>`  
+//
+//-----------------------------------------------
+//-----------------------------------------------
+
+
+//-----------------------------------------------
+//
+// process OR command
+//  OR <variable1> <variable2/value>
+//
+//-----------------------------------------------
+
+   case  OR:
+
+        varOffset = lower(*param1); 
+
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];         
+        } else if(strlen(param2) == 8){         // ust be binary
+            value = (uint8_t) strtol(param2, NULL, 2);
+        } else { // else it is an int value
+            value = atoi(param2);
+        }
+
+        varSpace[varOffset] = varSpace[varOffset] | value;
+
+        if(DEBUGGING) printf("OR'd variable %d with %d\n",  *param1, value);
+        break;
+
+
+//-----------------------------------------------
+//
+// process AND command
+//  AND <variable1> <variable2/value>
+//
+//-----------------------------------------------
+
+   case  AND:
+
+        varOffset = lower(*param1); 
+
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];         
+        } else if(strlen(param2) == 8){         // ust be binary
+            value = (uint8_t) strtol(param2, NULL, 2);
+        } else { // else it is an int value
+            value = atoi(param2);
+        }
+
+        varSpace[varOffset] = varSpace[varOffset] & value;
+
+        if(DEBUGGING) printf("AND'd variable %d with %d\n",  *param1, value);
+        break;
+
+
+
+//-----------------------------------------------
+//
+// process XOR command
+//  XOR <variable1> <variable2/value>
+//
+//-----------------------------------------------
+
+   case  XOR:
+
+        varOffset = lower(*param1); 
+
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];         
+        } else if(strlen(param2) == 8){         // ust be binary
+            value = (uint8_t) strtol(param2, NULL, 2);
+        } else { // else it is an int value
+            value = atoi(param2);
+        }
+
+        varSpace[varOffset] = varSpace[varOffset] ^ value;
+
+        if(DEBUGGING) printf("XOR'd variable %d with %d\n",  *param1, value);
+        break;
+
+
+//-----------------------------------------------
+//
+// process NOT command
+//  NOT <variable1> 
+//
+//-----------------------------------------------
+
+   case  NOT:
+
+        varOffset = lower(*param1); 
+
+        varSpace[varOffset] = ~varSpace[varOffset];
+
+        if(DEBUGGING) printf("NOT'd variable %d\n",  *param1);
+        break;
+
+
+//-----------------------------------------------
+//
+// process SHIFTLEFT command
+//  SHIFTLEFT <variable1> 
+//
+//-----------------------------------------------
+
+   case  SHIFTLEFT:
+
+        varOffset = lower(*param1); 
+
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];         
+        } else if(strlen(param2) == 8){         // ust be binary
+            value = (uint8_t) strtol(param2, NULL, 2);
+        } else { // else it is an int value
+            value = atoi(param2);
+        }
+        varSpace[varOffset] = varSpace[varOffset] << value;
+
+        if(DEBUGGING) printf("SHIFT LEFT variable %d by %d bits\n",  *param1, value);
+        break;
+
+
+//-----------------------------------------------
+//
+// process SHIFTRIGHT command
+//  SHIFTRIGHT <variable1> 
+//
+//-----------------------------------------------
+
+   case  SHIFTRIGHT:
+
+        varOffset = lower(*param1); 
+
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param2)];         
+        } else if(strlen(param2) == 8){         // ust be binary
+            value = (uint8_t) strtol(param2, NULL, 2);
+        } else { // else it is an int value
+            value = atoi(param2);
+        }
+        varSpace[varOffset] = varSpace[varOffset] >> value;
+
+        if(DEBUGGING) printf("SHIFT RIGHT variable %d by %d bits\n",  *param1, value);
+        break;;
+
 
 
 //-----------------------------------------------
@@ -1245,7 +1426,6 @@ switch (lineCmd) {
 
     case PEN:
 
-
         if(*param1 > 57){ // must be a char, ie set to another variable
             value = varSpace[lower(*param1)];
         } else { // else it is an int value
@@ -1255,7 +1435,6 @@ switch (lineCmd) {
         if(DEBUGGING) printf("Set PLOT PEN to %d\n", value);
         vdp_set_graphics_colour(0,value);
         break;
-
 
 
 //-----------------------------------------------
@@ -1268,8 +1447,6 @@ switch (lineCmd) {
 
     case PLOT:
 
-
-        
         if(*param1 > 57){ // must be a char, ie set to another variable
             xpos = varSpace[lower(*param1)];
         } else { // else it is an int value
@@ -1282,8 +1459,14 @@ switch (lineCmd) {
             ypos = atoi(param2);
         }
 
-        if(DEBUGGING) printf("PLOT to %d, %d \n", xpos, ypos);
-        vdp_plot(4, xpos, ypos);
+        if(*param3 == 49){ // set x and y to upper bytes
+            if(DEBUGGING) printf("PLOT to extended %d, %d \n", xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]));
+            vdp_plot(69, xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]));
+        } else { 
+            if(DEBUGGING) printf("PLOT to %d, %d \n", xpos, ypos);
+            vdp_plot(69, xpos, ypos);
+        }
+
         break;
 
 //-----------------------------------------------
@@ -1295,7 +1478,6 @@ switch (lineCmd) {
 //-----------------------------------------------
 
     case MOVETO:
-
         
         if(*param1 > 57){ // must be a char, ie set to another variable
             xpos = varSpace[lower(*param1)];
@@ -1309,8 +1491,16 @@ switch (lineCmd) {
             ypos = atoi(param2);
         }
 
-        if(DEBUGGING) printf("LINETO %d, %d \n", xpos, ypos);
-        vdp_move_to(xpos, ypos);
+        if(*param3 == 49){ // set x and y to upper bytes
+            if(DEBUGGING) printf("MOVETO to extended %d, %d \n", xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]));
+            vdp_move_to( xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]));
+        } else { 
+            if(DEBUGGING) printf("MOVETO %d, %d \n", xpos, ypos);
+            vdp_move_to(xpos, ypos);
+        }
+
+        // if(DEBUGGING) printf("LINETO %d, %d \n", xpos, ypos);
+        // vdp_move_to(xpos, ypos);
         break;
 
     
@@ -1324,7 +1514,6 @@ switch (lineCmd) {
 
     case LINETO:
 
-        
         if(*param1 > 57){ // must be a char, ie set to another variable
            xpos = varSpace[lower(*param1)];
         } else { // else it is an int value
@@ -1337,8 +1526,16 @@ switch (lineCmd) {
             ypos = atoi(param2);
         }
 
-        if(DEBUGGING) printf("LINETO %d, %d \n", xpos, ypos);
-        vdp_line_to(xpos, ypos);
+        if(*param3 == 49){ // set x and y to upper bytes
+            if(DEBUGGING) printf("LINETO to extended %d, %d \n", xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]));
+            vdp_line_to( xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]));
+        } else { 
+            if(DEBUGGING) printf("LINETO %d, %d \n", xpos, ypos);
+            vdp_line_to(xpos, ypos);
+        }
+
+        // if(DEBUGGING) printf("LINETO %d, %d \n", xpos, ypos);
+        // vdp_line_to(xpos, ypos);
         break;
 
 
@@ -1353,7 +1550,6 @@ switch (lineCmd) {
 
     case CIRCLE:
 
-        
         if(*param1 > 57){ // must be a char, ie set to another variable
            xpos = varSpace[lower(*param1)];
         } else { // else it is an int value
@@ -1372,10 +1568,17 @@ switch (lineCmd) {
             radius = atoi(param3);
         }
 
-        if(DEBUGGING) printf("CIRCLE at %d, %d with radius %d\n", xpos, ypos, radius);
+        
 
+        if(*param4 == 49){ // set x and y to upper bytes
+            if(DEBUGGING) printf("CIRCLE to extended %d, %d \n", xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]));
+            vdp_filled_circle( xpos + (256 * varSpace[25]), ypos + (256 * varSpace[26]), radius); 
+        } else { 
+            if(DEBUGGING) printf("CIRCLE at %d, %d with radius %d\n", xpos, ypos, radius);
+            vdp_filled_circle(xpos, ypos,radius);
+        }
 
-        vdp_filled_circle(xpos, ypos,radius);
+        // vdp_filled_circle(xpos, ypos,radius);
         break;
 
 
@@ -1385,6 +1588,7 @@ switch (lineCmd) {
 // Interaction with user
 //
 // `KEY`  
+// `JOY`  
 // `WAIT`  
 // `BEEP <offset/variable> <value/variable>`  
 // `INPUT <variable>`
@@ -1410,6 +1614,24 @@ switch (lineCmd) {
 
 //-----------------------------------------------
 //
+// process JOY command
+//  JOY <variable1> <variable2>
+// returns joystick status into var1 and var2
+//
+//-----------------------------------------------
+
+    case JOY:
+        joy = getJoystickButtons(); // get the state of all buttons
+
+        varSpace[lower(*param1)] = joy / 256;
+        varSpace[lower(*param2)] = joy % 256;
+        if(DEBUGGING) printf("JOY: " );
+        if(DEBUGGING) printf(BYTE_TO_BINARY_PATTERN , BYTE_TO_BINARY(joy) );
+        break;
+
+
+//-----------------------------------------------
+//
 //  WAIT
 // wait until any key press
 //
@@ -1429,8 +1651,6 @@ switch (lineCmd) {
 //-----------------------------------------------
 
    case BEEP:
-
-
 
             if(*param1 > 57){ // must be a char, ie set to another variable
                 freq = varSpace[lower(*param1)];
@@ -1455,8 +1675,6 @@ switch (lineCmd) {
 //-----------------------------------------------
 
     case INPUT:
-        
-
 
         fgets(buffer, sizeof(buffer), stdin);
         val = strtol(buffer, &endptr, 10);
@@ -1496,25 +1714,25 @@ switch (lineCmd) {
 
  case VDP:
             
-             leng = strlen(param1);
+        leng = strlen(param1);
 
-            bool deb = DEBUGGING;
-            DEBUGGING = false;  // cannot have debugging while sending VDP
+        bool deb = DEBUGGING;
+        DEBUGGING = false;  // cannot have debugging while sending VDP
 
-            if(leng == 8){
-                value = (uint8_t) strtol(param1, NULL, 2);
-            }
-            else if(*param1 == 39){ // must be a single quote, ie char to be sent in [1]
-                value = param1[1];
-            } else if(*param1 > 57){ // must be a char, ie set to another variable
-                value = varSpace[lower(*param1)];
-            } else { // else it is an int value
-                value = atoi(param1);
-            }
-            putchar(value);
+        if(leng == 8){
+            value = (uint8_t) strtol(param1, NULL, 2);
+        }
+        else if(*param1 == 39){ // must be a single quote, ie char to be sent in [1]
+            value = param1[1];
+        } else if(*param1 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param1)];
+        } else { // else it is an int value
+            value = atoi(param1);
+        }
+        putchar(value);
 
-            DEBUGGING = deb;
-           break;
+        DEBUGGING = deb;
+        break;
 
 //-----------------------------------------------
 //
@@ -1527,26 +1745,25 @@ switch (lineCmd) {
 
    case VDPS:
 
+    // get offset
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        offset = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        offset = atoi(param1);
+    }
 
-            // get offset
-            if(*param1 > 57){ // must be a char, ie set to another variable
-                offset = varSpace[lower(*param1)];
-            } else { // else it is an int value
-                offset = atoi(param1);
-            }
+    // get number of bytes to send
+    if(*param2 > 57){ // must be a char, ie set to another variable
+        count = varSpace[lower(*param2)];
+    } else { // else it is an int value
+        count = atoi(param2);
+    }
 
-            // get number of bytes to send
-            if(*param2 > 57){ // must be a char, ie set to another variable
-                count = varSpace[lower(*param2)];
-            } else { // else it is an int value
-                count = atoi(param2);
-            }
+    for(uint8_t sendloop = 0; sendloop < count; sendloop ++){
+        putchar(dataSpace[offset + sendloop]);
+    }
 
-            for(uint8_t sendloop = 0; sendloop < count; sendloop ++){
-                putchar(dataSpace[offset + sendloop]);
-            }
-
-           break;
+    break;
 
 
 //-----------------------------------------------

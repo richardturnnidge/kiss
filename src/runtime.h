@@ -1,7 +1,7 @@
 // FUNCTIONS IN RUNTIME.H
 
 void runcode(char* fname);
-void parseLine(char *command, char *param1, char *param2, char *param3);
+void parseLine(char *command, char *param1, char *param2, char *param3, char *param4);
 uint8_t lower(uint8_t num);
 void strip_substr(char *str, const char *sub);
 void strip_substr_array(char *arr[], size_t count, const char *sub);
