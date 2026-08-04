@@ -302,18 +302,3 @@ A new code line starts after a CR.
 
 Any line's command not recognised will be ignored.
 
-# to do... bitwise operations
-I don't know why, but seems a thing it should do.  
-Make sure other SET, MATHS and COMP operations deal with binary values.  
-
-`OR <var> <var/value>`
-Var A = A or B  
-
-`AND <var> <var/value>`
-Var A = A and B  
-
-`NOT <var>`
-Var A = not A
-
-`XOR <var> <var/value>`
-Var A = A xor B  
