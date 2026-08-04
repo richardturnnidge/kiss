@@ -149,6 +149,13 @@ Result is in first variable.
 NOTs variable1.  
 Result is in variable1.  
 
+`SHIFTLEFT <variable1/value>`  
+Binary shift left by bits.  
+ 
+`SHIFTRIGHT <variable1/value>`  
+Binary shift right by bits.  
+ 
+
 
 
 
@@ -224,6 +231,10 @@ would yield a coordinate of: `10 +(256 *2), 20 + (256 * 0)` ie, `PLOT 522, 20`.
 
 `KEY`  
 checks down status and sets '@' to ascii code or 0 if none.
+
+
+`JOY <variable1> <variable2>`   
+gets values of ports B and C for joystick input and puts results into variable 1 and 2.  
 
 
 `WAIT`  
