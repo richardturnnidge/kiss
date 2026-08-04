@@ -1,0 +1,12 @@
+set a 10101010
+set b 00111111
+printnum a bin
+cr
+printnum b bin
+cr
+shiftright a 2 
+cr
+printnum a bin
+plot 50 50
+wait
+exit

@@ -1,0 +1,5 @@
+// joystick test
+JOY x h
+printvars
+wait
+exit
