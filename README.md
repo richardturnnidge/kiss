@@ -85,19 +85,34 @@ Reduce counter and loop round if not zero.
 `GOTO <label ID>`  
 Goto label.
 
-`GOTOIF <label ID>` <value expected in '@' value/variable>  
-Goto label if 'result' is a certain value or value in a variable.
+`GOTOIF <label ID> <value/variable> <value/variable>` 
+Goto label if variables or values match.
+
+`GOTOIFNOT <label ID> <value/variable> <value/variable>` 
+Goto label if variables or values do not match.
 
 `CALL <label ID>`  
 Call labelled subroutine and return later.
 
-`CALLIF` <label ID> <value expected in '@' value/variable>  
-Call if result matches.  
-eg. if 'result' is 20, then gosub label subroutine.
+`CALLIF <label ID> <value/variable> <value/variable>`
+Call label if variables or values match. 
+
+`CALLIFNOT <label ID> <value/variable> <value/variable>`
+Call label if variables or values do not match. 
+
 
 `RET`  
 Return from a subroutine, if there is a line number in the return variable.  
 Stack allows for up to 16 nested call/returns.
+
+`TIMER <label ID> <value/variable> `
+Start an interrupt timer which calls label ID at a frequency in 100/s.  
+Set freq to 0 to cancel timer function.  
+Only one timer can operate at any time.   
+
+
+`TIMERRET`  
+Return from timer subroutine.  
 
 
 `DELAY <variable1/value>`  
