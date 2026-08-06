@@ -20,7 +20,9 @@
 #define MAX_LINES 2048                    // max number of lines in our program
 #define MAX_LEN 20                      // max length of chars in each code line
 
+bool doDebug = false;
 bool DEBUGGING = false;                 // are we debugging
+
 uint16_t currentLine = 0;               // current line being executed
 uint16_t returnLine = 0;               // line to use for a RET command
 uint8_t previousMode ;
@@ -36,10 +38,11 @@ uint8_t dataSpace[256];
 uint16_t labels[256];                   // used to store line number of each label 0-255
 uint16_t returnStack[17];                   // used to store retun line numbers for each CALL
 uint8_t returnStackIndex = 0;               // current return stack position
+
 char codeData[MAX_LINES][MAX_LEN];      // used to store each line of code
 uint8_t varSpace[30];                   // used to store each of 26 variables a-z
 bool running = false;                   // is code running
-uint8_t commandIndex[MAX_LINES];        // used to store index of each line's command
+uint8_t commandIndex[MAX_LINES];        // used to store index of each line's command. Max 256 commands should be enough
 
 
 // make sure order does not have short word after long word containing short word.
@@ -58,8 +61,10 @@ char *commandList[] = {
     "ENDLOOP",
     "GOTO",
     "GOTOIF",
+    "GOTOIFNOT",
     "CALL",
     "CALLIF",
+    "CALLIFNOT",
     "RET",
     "DELAY",
     "EXIT",
@@ -104,7 +109,9 @@ char *commandList[] = {
     "VDPS",
 
     "DEBUG",
-    "PRINTVARS"
+    "PRINTVARS",
+    "TIMER",
+    "TIMERRET"
     
 };
 
@@ -122,8 +129,10 @@ enum cmds {
     ENDLOOP,
     GOTO,
     GOTOIF,
+    GOTOIFNOT,
     CALL,
     CALLIF,
+    CALLIFNOT,
     RET,
     DELAY,
     EXIT,
@@ -167,12 +176,15 @@ enum cmds {
     VDPS,
 
     DEBUG,
-    PRINTVARS
+    PRINTVARS,
+    TIMER,
+    TIMERRET
     
 };
 
 
 
+// used for printing out binary numbers 0-255
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
   ((byte) & 0x80 ? '1' : '0'), \
@@ -216,7 +228,11 @@ char buffer[20];
 char *endptr;
 int val;
 
-
+uint32_t lastTime;
+bool timerRunning;
+uint16_t timerReturnLine;
+uint8_t timerFreq;
+uint16_t timerLine;
 
 //void runcode(text_buffer* aTextBuffer){
 void runcode(char* fname){
@@ -224,7 +240,10 @@ void runcode(char* fname){
     previousMode = getsysvar_scrMode(); // if user changes screen mode, we can reset after running
     vdp_logical_scr_dims(false);
     vdp_clear_screen();
-    
+    timerRunning = 0;
+    DEBUGGING = doDebug;
+    currentLine = 0;
+
     srand(time(NULL));  // seed with current time or the RND feature will be the same every time run
 
     resetJoysticks(); // reset all joystick ports to their input state
@@ -236,19 +255,19 @@ void runcode(char* fname){
     } 
 
   
-  // Create a file pointer variable to allow us to access the file
-  FILE *file;
-  
-  // open the file...
-  file = fopen(fname, "r");
+    // Create a file pointer variable to allow us to access the file
+    FILE *file;
 
-  // If we've failed to open the file, exit with an error message and status, 
-  if (file == NULL)
-  {
-    printf("Error opening file.\n");
-    delay(2000);
+    // open the file...
+    file = fopen(fname, "r");
+
+    // If we've failed to open the file, exit with an error message and status, 
+    if (file == NULL)
+    {
+        printf("Error opening file.\n");
+        delay(2000);
     return;
-  }
+    }
 
     // numLines will keep track of the number of lines read so far from the file
     uint16_t numLines = 0;
@@ -280,16 +299,16 @@ void runcode(char* fname){
    
 // try to load a data file if exists
 // if it fails, the space will be empty
-  FILE *datafile;
-  datafile = fopen("kiss.data", "r");
+    FILE *datafile;
+    datafile = fopen("kiss.data", "r");
 
-  if (datafile != NULL)
-  {
+    if (datafile != NULL)
+    {
         fread(dataSpace, 1,256, datafile ); 
         if(DEBUGGING) printf("got data file, 1st byte is: %d\n", dataSpace[0]);
-  } else {
+    } else {
         if(DEBUGGING) printf("failed to open data file");
-  }
+    }
     fclose(datafile);
 
   
@@ -401,6 +420,22 @@ void runcode(char* fname){
 
         currentLine ++;     // inc line now, in case it gets changed by a GOTO
 
+
+
+        if (timerRunning){
+            if (clock() - lastTime >= timerFreq) {   // 100 ms passed
+                //printf("Tick! %d\n", clock());
+    
+                lastTime = clock();
+
+
+                timerReturnLine = currentLine-1;
+                currentLine = timerLine;
+
+            }
+        }
+
+
         // if line is empty, then don't waste time trying to match a command
         if(command != NULL){ 
             parseLine( command,  param1,  param2,  param3, param4);
@@ -475,7 +510,7 @@ switch (lineCmd) {
 //-----------------------------------------------
 
     case BLANK:
-    case 50:
+    //case 50:
         // not used
         break;
         
@@ -761,10 +796,58 @@ switch (lineCmd) {
         } else { // else it is an int value
             checkValue = atoi(param2);
         }
-        if(DEBUGGING) printf("GOTOIF LABEL %d line %d checkValue %d a: %d\n", labelValue, labels[labelValue], checkValue, varSpace[resultChar]);
-        if(varSpace[resultChar] == checkValue){
+
+        if(*param3 == 39){ // must be a single quote, ie char
+            char v = param3[2];
+            value = (uint8_t)v;
+        } else  if(*param3 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param3)];;
+        } else { // else it is an int value
+            value = atoi(param3);
+        }
+
+        if(DEBUGGING) printf("GOTOIF LABEL %d line %d checkValue %d with: %d\n", labelValue, labels[labelValue], checkValue, value);
+        if(value == checkValue){
             currentLine = labels[labelValue];
             if(DEBUGGING) printf("GOTOIF LABEL %d \n", labelValue);
+        }
+        break;
+//-----------------------------------------------
+//
+// process GOTOIFNOT command
+//  GOTOIFNOT <variable1/value> <variable1/value>
+//
+//-----------------------------------------------
+
+   case GOTOIFNOT:
+
+
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            labelValue = varSpace[lower(*param1)];
+
+        } else { // else it is an int value
+            labelValue = atoi(param1);
+        }
+
+        if(*param2 > 57){ // must be a char, ie set to another variable
+            checkValue = varSpace[lower(*param2)];
+        } else { // else it is an int value
+            checkValue = atoi(param2);
+        }
+
+        if(*param3 == 39){ // must be a single quote, ie char
+            char v = param3[2];
+            value = (uint8_t)v;
+        } else  if(*param3 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param3)];;
+        } else { // else it is an int value
+            value = atoi(param3);
+        }
+
+        if(DEBUGGING) printf("GOTOIF LABEL %d line %d checkValue %d with: %d\n", labelValue, labels[labelValue], checkValue, value);
+        if(value != checkValue){
+            currentLine = labels[labelValue];
+            if(DEBUGGING) printf("GOTOIFNOT LABEL %d \n", labelValue);
         }
         break;
 
@@ -820,9 +903,21 @@ switch (lineCmd) {
         } else { // else it is an int value
             checkValue = atoi(param2);
         }
+
+        if(*param3 == 39){ // must be a single quote, ie char
+                char v = param3[2];
+                value = (uint8_t)v;
+        } else  if(*param3 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param3)];;
+        } else { // else it is an int value
+            value = atoi(param3);
+        }
+
+
+
         if(DEBUGGING) printf("CALLIF LABEL %d line %d checkValue %d a: %d\n", labelValue, labels[labelValue], checkValue, varSpace[resultChar]);
 
-        if(varSpace[resultChar] == checkValue){
+        if(value == checkValue){
 
             returnStackIndex ++;
             returnStack[returnStackIndex] = currentLine;
@@ -837,20 +932,90 @@ switch (lineCmd) {
 
 //-----------------------------------------------
 //
+// process CALLIFNOT command
+//  CALLIFNOT <variable1/value> <variable2/value>
+//
+//-----------------------------------------------
+
+    case CALLIFNOT:
+
+
+
+        if(*param1 > 57){ // must be a char, ie set to another variable
+            labelValue = varSpace[lower(*param1)];
+        } else { // else it is an int value
+            labelValue = atoi(param1);
+        }
+
+        if(*param2 == 39){ // must be a single quote, ie char
+                char v = param2[2];
+                checkValue = (uint8_t)v;
+        } else  if(*param2 > 57){ // must be a char, ie set to another variable
+            checkValue = varSpace[lower(*param2)];;
+        } else { // else it is an int value
+            checkValue = atoi(param2);
+        }
+
+        if(*param3 == 39){ // must be a single quote, ie char
+                char v = param3[2];
+                value = (uint8_t)v;
+        } else  if(*param3 > 57){ // must be a char, ie set to another variable
+            value = varSpace[lower(*param3)];;
+        } else { // else it is an int value
+            value = atoi(param3);
+        }
+
+
+
+        if(DEBUGGING) printf("CALLIF LABEL %d line %d checkValue %d a: %d\n", labelValue, labels[labelValue], checkValue, varSpace[resultChar]);
+
+        if(value != checkValue){
+
+            returnStackIndex ++;
+            returnStack[returnStackIndex] = currentLine;
+            currentLine = labels[labelValue];
+
+            if(DEBUGGING) printf("CALLIFNOT LABEL %d \n", labelValue);
+        }
+
+        
+        break;
+
+
+//-----------------------------------------------
+//
 // process RET
 // return to most recent line on return stack
 //
 //-----------------------------------------------
 
     case RET:
-         returnLine = returnStack[returnStackIndex];
- 
+        
+        returnLine = returnStack[returnStackIndex];
+
         currentLine = returnLine;
 
         if(DEBUGGING) printf("RET to stack index %d which is line %d \n", returnStackIndex, returnLine);
         if(returnStackIndex >0) returnStackIndex--;
 
-        break;
+
+    break;
+
+//-----------------------------------------------
+//
+// process TIMERRET
+// return from timer routine
+//
+//-----------------------------------------------
+
+    case TIMERRET:
+        
+        if(timerRunning == 1) // timer is running, so need special case return
+            {
+                    currentLine = timerReturnLine;
+            } 
+
+    break;
 
 
 //-----------------------------------------------
@@ -1820,7 +1985,54 @@ switch (lineCmd) {
         }
     break;
 
- 
+ //-----------------------------------------------
+//
+//  process TIMER command
+//  TIMER label freq
+//  TIMER <value/variable> <value/variable>
+//
+//-----------------------------------------------
+
+   case TIMER:
+
+    // get label for timer routine
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        offset = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        offset = atoi(param1);
+    }
+
+    // get freq of routine. How often in 100ths / sec
+    // 0 means cancel
+    if(*param2 > 57){ // must be a char, ie set to another variable
+        count = varSpace[lower(*param2)];
+    } else { // else it is an int value
+        count = atoi(param2);
+    }
+
+    if(count > 0){         //valid timer value
+        if(timerRunning == 0)
+            {
+                timerFreq = count;
+                timerLine = labels[offset];
+                //timerReturnLine = currentLine;
+                timerRunning = 1;
+                if(DEBUGGING) printf("Set timer %d goes to line %d at freq of %d\n",offset, timerLine, timerFreq);
+            }
+
+    } else {        //stop timer
+        timerRunning = 0   ;
+
+    }
+    if(param1 == NULL){
+        timerRunning = 0   ;
+    }
+
+
+
+    break;
+
+
 //-----------------------------------------------
 //
 //  END OF PARSING
