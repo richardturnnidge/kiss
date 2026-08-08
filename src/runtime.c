@@ -19,6 +19,7 @@
 // runtime part of code
 #define MAX_LINES 2048                    // max number of lines in our program
 #define MAX_LEN 20                      // max length of chars in each code line
+#define MAX_LINE_LEN 256
 
 bool doDebug = false;
 bool DEBUGGING = false;                 // are we debugging
@@ -276,23 +277,45 @@ void runcode(char* fname){
     strcpy(anotherbuffer, codeData[numLines]);
 
 
-    while (numLines < MAX_LINES && fgets(codeData[numLines], 50, file) != NULL) {
-        size_t len = strlen(codeData[numLines]);
 
+    // try this version
+
+    char line[MAX_LINE_LEN];
+    int line_num = 0;
+
+    while (numLines < MAX_LINES && read_line(file, line, sizeof(line))) {
+        if(DEBUGGING) printf("Line %d: %s\n", line_num++, line);
+        line[strlen(line)] = '\0';
+        strcpy(codeData[numLines], line);
         codeData[numLines][19] = '\0';
         toUpperCase(codeData[numLines]);  // convert all commands to UPPER case for quick processing
 
-
-
-
-        // Standard newline cleanup
-        while (len > 0 && (codeData[numLines][len - 1] == '\n' || codeData[numLines][len - 1] == '\r')) {
-            codeData[numLines][len - 1] = '\0';
-            len--;
-        }
-        //printf("LINE %d: %s\n", numLines, codeData[numLines]);
         numLines++;
     }
+    numLines++;
+    // vdp_waitKeyUp();
+    // vdp_waitKeyDown();
+
+
+
+
+    // while (numLines < MAX_LINES && fgets(codeData[numLines], 50, file) != NULL) {
+    //     size_t len = strlen(codeData[numLines]);
+
+    //     codeData[numLines][19] = '\0';
+    //     toUpperCase(codeData[numLines]);  // convert all commands to UPPER case for quick processing
+
+
+
+
+    //     // Standard newline cleanup
+    //     while (len > 0 && (codeData[numLines][len - 1] == '\n' || codeData[numLines][len - 1] == '\r')) {
+    //         codeData[numLines][len - 1] = '\0';
+    //         len--;
+    //     }
+    //     //printf("LINE %d: %s\n", numLines, codeData[numLines]);
+    //     numLines++;
+    // }
 
   // Close the file when we are done working with it.
   fclose(file);
@@ -1013,6 +1036,7 @@ switch (lineCmd) {
         if(timerRunning == 1) // timer is running, so need special case return
             {
                     currentLine = timerReturnLine;
+                    if(DEBUGGING) printf("returning from timer function\n");
             } 
 
     break;
@@ -1803,6 +1827,7 @@ switch (lineCmd) {
 //-----------------------------------------------
 
     case WAIT:
+    if(DEBUGGING) printf("WAITing\n");
         vdp_waitKeyUp();
         vdp_waitKeyDown();
         break;
@@ -2150,6 +2175,34 @@ void toUpperCase(char *str) {
         str[i] = toupper((unsigned char)str[i]);
     }
 }
+
+
+
+
+
+// Returns 1 if a line was read, 0 on EOF with nothing read
+int read_line(FILE *fp, char *buffer, size_t max_len) {
+    int ch;
+    size_t i = 0;
+
+    while (i < max_len - 1) {
+        ch = fgetc(fp);
+
+        if (ch == EOF) {
+            if (i == 0) return 0;   // nothing read, true EOF
+            break;                  // last line with no trailing newline
+        }
+        if (ch == '\n') {
+            break;                  // end of line
+        }
+
+        buffer[i++] = (char)ch;
+    }
+
+    buffer[i] = '\0';
+    return 1;
+}
+
 
 //-----------------------------------------------
 //
