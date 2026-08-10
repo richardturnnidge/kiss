@@ -71,8 +71,9 @@ Set data at given offset with value or variable
 ## Program Flow & logic
 
 
-`LABEL <number>`  
-A label with number 0-255. Used for GOTO, etc.
+`LABEL <number/name>`  
+A label with number 0-255. Used for GOTO, CALL, etc.  
+Labels can also use a text name (max 8 chars, no spaces), but will be a little slower than numerical labels.  
 
 
 `LOOP <value/variable>`  
@@ -141,6 +142,15 @@ MUL a b
 
 `DIV <variable1/value> <variable2>`  
 Divides variable1 or value by variable2. Result is stored in variable1 as rounded down integer. Mod is stored in 'carry flag'
+
+`SIN  <variable>`  
+Sets variable to the SIN of variable.  
+Angles go from 0-255 (instead of 0-359 deg). Value returned is from 0-127 with carry flag being set to 1 if a negative value.  
+
+`COS  <variable>`  
+Sets variable to the COS of variable.  
+Angles go from 0-255 (instead of 0-359 deg). Value returned is from 0-127 with carry flag being set to 1 if a negative value.  
+
 
 
 ## Binary Operations
