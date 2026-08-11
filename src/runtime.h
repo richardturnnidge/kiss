@@ -11,3 +11,6 @@ uint16_t find_string(char *arr[], uint16_t size, char *target);
 void strip_leading_spaces_inplace(char *str) ;
 char *strip_leading_spaces(char *str);
 int read_line(FILE *fp, char *buffer, size_t max_len) ;
+void build_sin_table(void);
+uint16_t getLabelLine(char *labelParam);
+
