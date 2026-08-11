@@ -269,8 +269,15 @@ Waits for user to press and release any key.
 `BEEP <offset/variable> <value/variable>`  
 Beep at freq (/10) for time (c/s)
 
-`INPUT <variable>`
+`GETNUM <variable>`
 Requests numerical input from user.
+
+`INPUT <port (B,C, or D)> <pin (value/variable)> <variable> `  
+Reads pin value on port and puts into variable, either 0 or 1.  
+
+`OUTPUT <port (B,C, or D)> <pin (value/variable)> <value/variable> `  
+Sets pin value on port and to variable/value, either 0 or 1.  
+
 
 
 ## Using the Power of VDP
