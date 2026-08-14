@@ -4,27 +4,19 @@
 RND N 20        / n is random number up to 20
 
 LABEL guess     / start
-
 VDPS 0 31       / print message
 CR
-
 SET ? 0         / clear carry flag
 
-
 GETNUM A        / get user input
-
 GOTOIF correct A N      / matched
-
 COMP A N        / compare with random number
-
 GOTOIF high ? 0 / too high if carry was not set
-            
-        / else too low
 
+/ else too low
 VDPS 41 7       / print too low message
 CR
 GOTO guess
-
 
 LABEL high          / too high
 VDPS 32 8       / print too high message
@@ -32,10 +24,8 @@ CR
 GOTO guess
 
 
-
 LABEL correct   / correct
 VDPS 49 10      / print well done message
-
 CR
 PRINT Bye!
 CR
