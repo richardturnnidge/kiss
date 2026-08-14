@@ -1,0 +1,14 @@
+/ GPIO input example
+/ INPUT <port> <pin> <variable>
+
+LABEL loop
+	
+	INPUT C 0 B
+	TABTO 0 0
+	PRINTNUM B
+	DELAY 100
+
+GOTO loop
+
+WAIT
+EXIT

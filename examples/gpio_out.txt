@@ -1,0 +1,20 @@
+/ GPIO output example
+/ OUTPUT <port> <pin> <0 or 1>
+
+LABEL off
+
+	print On...
+	OUTPUT C 0 1
+	DELAY 100
+
+LABEL on
+	
+	PRINT Off...
+	CR
+	OUTPUT C 0 0
+	DELAY 100
+
+GOTO off
+
+WAIT
+EXIT
