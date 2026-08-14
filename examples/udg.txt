@@ -1,12 +1,10 @@
 / UDG & subroutine example
 
 CURSOR 0    /set cursor off
-CALL udg      /call sub at label 1
+CALL udg      /call sub at label udg
 
-SET C to 20  
-SET B 30
-TABTO B C  / set tab    
-VDP 128    / print custom chars
+TABTO 20 20  / set tab    
+VDP 128    / print custom char
 
 WAIT       / wait for user to press a key
 EXIT       / exits
@@ -24,4 +22,4 @@ VDP 10100101
 VDP 10000001
 VDP 11111111
 
-RET /comment
+RET 
