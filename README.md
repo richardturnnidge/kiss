@@ -174,10 +174,10 @@ Result is in first variable.
 NOTs variable1.  
 Result is in variable1.  
 
-`SHIFTLEFT <variable1/value>`  
+`SHIFTLEFT <variable1><variable1/value>`  
 Binary shift left by bits.  
  
-`SHIFTRIGHT <variable1/value>`  
+`SHIFTRIGHT <variable1><variable1/value>>`  
 Binary shift right by bits.  
  
 
