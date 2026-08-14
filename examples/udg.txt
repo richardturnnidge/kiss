@@ -1,19 +1,18 @@
 / UDG & subroutine example
 
 CURSOR 0    /set cursor off
-CALL 1      /call sub at label 1
+CALL udg      /call sub at label 1
+
 SET C to 20  
 SET B 30
 TABTO B C  / set tab    
 VDP 128    / print custom chars
-SPC
-vdp 129
-WAIT       / wait fo user to press a key
+
+WAIT       / wait for user to press a key
 EXIT       / exits
 
 
-
-LABEL 1     / define UDG char
+LABEL udg     / define UDG char
 VDP 23      / vdp define UDG
 VDP 128     / which char
 VDP 11111111
@@ -25,9 +24,4 @@ VDP 10100101
 VDP 10000001
 VDP 11111111
 
-// load udg from file
-vdp 23      / define UDG
-vdp 129     / set char number
-vdps 100 8  / read data from file
-
-RET
+RET /comment

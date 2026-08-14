@@ -1,0 +1,39 @@
+// example of SIN & COS
+// angle is 0-255 (0-359 deg)
+// result of SIN A is 0-255, 128 being mid point
+
+mode 20
+cursor 0
+ink 2
+print SIN
+cr
+CR
+ink 3
+print COS
+
+pen 8
+plot 0 126
+lineto 255 126
+
+plot 130 0
+lineto 130 255
+
+set a 0
+pen 2
+    loop 255
+    set b a
+    sin b
+    set c ?
+    add 1 a
+    plot a @
+endloop
+pen 3
+    loop 255
+    set b a
+    cos b
+    set c ?
+    add 1 a
+    plot a @
+endloop
+wait
+exit

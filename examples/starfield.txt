@@ -1,0 +1,22 @@
+/ ===================================================
+/ COLOURFUL STARFIELD in KISS for Agon
+/ plots random coloured stars, building up over time
+/ press ESC to stop
+/ ===================================================
+
+CLS
+MODE 8
+
+LABEL start
+
+RND X 255
+RND Y 255
+RND C 63
+RND S 5
+ADD 1 S
+PEN C
+CIRCLE X Y S 0
+
+GOTO start
+
+EXIT

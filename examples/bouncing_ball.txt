@@ -1,0 +1,80 @@
+/ ===================================================
+/ BOUNCING BALL WITH GRAVITY in KISS for Agon
+/ a ball drops, bounces, and loses energy each bounce
+/ ESC to stop
+/ ===================================================
+
+CLS
+MODE 8
+CURSOR 0
+
+SET B 128       // ball pos x
+SET F 230       // floor pixels
+SET G 1             // gravity
+SET V 0             // current velocity
+SET D 0             // direction. 0 down, 1 up
+SET Y 10        // current y pos
+SET P 10        // previous Y pos
+
+/ ===== main animation loop =====
+LABEL main
+
+/ erase ball from previous position
+PEN 0
+CIRCLE B P 3 0
+
+GOTOIF downwd D 0
+GOTO upwd
+
+/ ---- falling: accelerate downward ----
+LABEL downwd
+ADD G V
+SET N Y
+ADD V N
+COMP N with F
+GOTOIFNOT sety ? 0
+
+
+/ reached or passed the floor - clamp and bounce
+SET Y FLOOR
+SET D 1
+DIV V by 4      // just remove the mod to slow it down
+MUL V by 4
+COMP V 2
+GOTOIF 16 ? 0
+
+SET V 0         // got to top again
+SET D 0
+
+LABEL 16
+GOTO draw
+
+LABEL sety
+SET Y N
+GOTO draw
+
+
+/ ---- rising: decelerate upward ----
+LABEL upwd
+COMP V with G
+GOTOIFNOT 15 ? 0
+SUB G V
+SUB V Y
+GOTO draw
+
+LABEL 15
+SET V 0
+SET D 0
+
+
+/ ===== draw ball at new position =====
+LABEL draw
+PEN 44
+CIRCLE B Y 3 0
+SET P Y
+
+DELAY 30
+GOTO main
+
+LABEL 9
+EXIT

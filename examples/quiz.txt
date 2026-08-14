@@ -1,46 +1,44 @@
-
 / example of higher-lower quiz
+/ text is stored in kiss.data file
 
-rnd n 20    / n is random number up to 20
+RND N 20        / n is random number up to 20
 
-label 0     / start
-vdps 0 31   / print message
+LABEL guess     / start
+
+VDPS 0 31       / print message
 CR
 
-set ? 0     / clear carry flag
+SET ? 0         / clear carry flag
 
 
-input A     / get user input
-comp A n    / compare with random number
+GETNUM A        / get user input
 
-gotoif 1 0  / correct match
-set @ ?     / set @ to carry flag for comparison
-gotoif 2 0  / too high if carry was not set and @ was not 0
-goto 3      / else too low
+GOTOIF correct A N      / matched
 
+COMP A N        / compare with random number
 
+GOTOIF high ? 0 / too high if carry was not set
+            
+        / else too low
 
-label 2     / too high
-vdps 32 8   / print too high message
+VDPS 41 7       / print too low message
 CR
-goto 0
+GOTO guess
 
 
-label 3     / too low
-vdps 41 7   / print too low message
+LABEL high          / too high
+VDPS 32 8       / print too high message
 CR
-goto 0
+GOTO guess
 
 
 
-label 1     / correct
-vdps 49 10  / print well done message
+LABEL correct   / correct
+VDPS 49 10      / print well done message
 
 CR
-print Bye!
+PRINT Bye!
 CR
 
-wait
-wait
-wait
-exit
+WAIT
+EXIT

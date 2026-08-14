@@ -1,0 +1,87 @@
+/ ===================================================
+/ ANIMATED SPACE INVADER in KISS for Agon
+/ walks across the screen, alternating two frames
+/ ESC to stop
+/ ===================================================
+
+/ ---- frame A: legs out ----
+SETDATA 0 60
+SETDATA 1 126
+SETDATA 2 219
+SETDATA 3 255
+SETDATA 4 126
+SETDATA 5 36
+SETDATA 6 90
+SETDATA 7 165
+
+/ ---- frame B: legs in ----
+SETDATA 8 60
+SETDATA 9 126
+SETDATA 10 219
+SETDATA 11 255
+SETDATA 12 126
+SETDATA 13 36
+SETDATA 14 60
+SETDATA 15 66
+
+CLS
+MODE 8
+cursor 0
+
+/ redefine char 224 = frame A
+VDP 23
+VDP 224
+VDPS 0 8
+
+/ redefine char 225 = frame B
+VDP 23
+VDP 225
+VDPS 8 8
+
+INK 46
+
+SET X 0
+SET Y 10
+SET P 0
+SET F 0
+
+/ ===== animation loop =====
+LABEL 0
+
+
+/ erase invader from its previous position
+TABTO P Y
+VDP 32
+
+/ pick which frame to show this step
+//COMP F with 0
+GOTOIF 1 F 0
+SET U 225
+GOTO 2
+LABEL 1
+SET U 224
+LABEL 2
+
+/ draw invader at current position
+TABTO X Y
+VDP U
+
+/ remember position for next erase, flip frame
+SET P X
+not F
+xor f 00000001
+
+/ step forward, wrap at right edge
+ADD 1 X
+COMP X with 32
+GOTOIFNOT 3 ? 0
+SET X 0
+LABEL 3
+
+DELAY 100
+KEY
+GOTOIF 9 @ 27
+GOTO 0
+
+LABEL 9
+EXIT

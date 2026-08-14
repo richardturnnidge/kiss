@@ -1,28 +1,28 @@
 / KEY INPUT EXAMPLE
 / PRESS - OR + TO CHANGE VALUE
 / PRESS ANY KEY TO SEE VALUE
+/ ESC to exit
 
-PRINT ESC_to_exit
-SET C 128
+SET C to 128
 CALL 4
 
 LABEL 1     / main loop
 
-KEY         / sets @ to key code or 0
-SET K @     / store keycode
-CALLIF 2 43
-CALLIF 3 45
+KEY K         / sets @ to key code or 0
+
+CALLIF 2 43 K
+CALLIF 3 45 K
 CALL 5
 GOTO 1
 
 
 LABEL 2         / increase value
-ADD 1 C
+ADD 1 to C
 CALL 4
 RET
 
 LABEL 3         / decrease value
-SUB 1 C
+SUB 1 from C
 CALL 4
 RET
 

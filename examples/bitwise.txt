@@ -1,0 +1,114 @@
+//------------------------------------
+// Example of bitwise functions:
+// OR <variable1> <variable2/value> 
+// AND <variable1> <variable2/value>
+// XOR <variable1> <variable2/value>
+// NOT <variable1> 
+// SHIFTLEFT <variable1><variable1/value>
+// SHIFTRIGHT <variable1><variable1/value>>
+//------------------------------------
+
+SET A 00110011
+SET B 00001111
+SET Z A	// used to reset A each example
+
+PRINT start-values:
+CR
+PRINT A:
+PRINTNUM Z bin
+CR
+PRINT B:
+PRINTNUM B bin
+CR
+CR
+
+// bitwise OR
+
+PRINT a_or_b
+CR
+OR A B
+CALL printit
+
+// bitwise AND
+
+SET A Z
+PRINT a_and_b
+CR
+AND A B
+CALL printit
+
+// bitwise XOR
+
+SET A Z
+PRINT a_xor_b
+CR
+XOR A B
+CALL printit
+
+// bitwise NOT
+
+SET A Z
+PRINT not_A
+CR
+NOT A
+
+PRINT A:
+PRINTNUM Z bin
+CR
+SPC
+SPC
+PRINTNUM A bin
+CR
+CR
+
+// bitwise << shift left
+
+SET A Z
+PRINT A<<3
+CR
+SHIFTLEFT A 3	// same as multiply by 8
+
+PRINT A:
+PRINTNUM Z bin
+CR
+SPC
+SPC
+PRINTNUM A bin
+CR
+CR
+
+// bitwise >> shift right
+
+SET A Z
+PRINT A>>1	// same as div by 2
+CR
+SHIFTRIGHT A 1
+
+PRINT A:
+PRINTNUM Z bin
+CR
+SPC
+SPC
+PRINTNUM A bin
+CR
+CR
+
+
+WAIT
+EXIT
+
+
+LABEL printit
+PRINT A:
+PRINTNUM Z bin
+CR
+PRINT B:
+PRINTNUM B bin
+CR
+SPC
+SPC
+PRINTNUM A bin
+CR
+CR
+
+RET
