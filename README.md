@@ -13,6 +13,8 @@ Use `CTRL R` to run the file.
 A command line version is available with no editor, that takes the file name as the first argument. eg.  
 `runkiss myfile.txt`
 
+The editor now has the option to colour code the commands and variables, using AED's default method. A set of config files are included. The `config` folder needs to be at top level of the SD card. You can just leave as black and white if you prefer.  
+
 # Examples
 There are several examples included to demonstrate the main commands.  
 There is also a fully functional game of `Snake` to show how a full program could be developed.  
