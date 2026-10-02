@@ -1,0 +1,434 @@
+/*
+ * Copyright (C) 2023  Igor Cananea <icc@avalonbits.com>
+ * Author: Igor Cananea <icc@avalonbits.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _TEXT_BUFFER_H_
+#define _TEXT_BUFFER_H_
+
+#include "char_buffer.h"
+#include "doc_store.h"
+#include "line_buffer.h"
+
+// The undo log, if one is attached. Defined in undo.h, which includes this
+// header for tb_pos -- so the pointer is opaque here and the dependency only
+// runs one way.
+struct _undo;
+typedef struct _undo undo;
+
+// The longest document name, including the terminator. clipboard.c sizes its
+// scratch path against this.
+#define TB_FNAME_MAX 256
+
+/*
+ * Paging, from docs/PAGING.md.
+ *
+ * TB_CHUNK is how much a slide moves. The rule was "about a frame to read and
+ * write", which at the 182 KiB/s the card was measured at lands between 1 and
+ * 2 KiB; 2 KiB is 22 ms of disk and about half of what a page-down already
+ * spends repainting sixty rows over the VDP link. The shifting inside memory
+ * puts a slide nearer 31 ms all told.
+ *
+ * TB_MARGIN is how close to either end of memory the cursor is allowed before a
+ * slide happens. It has to cover a repaint, which spans about a screenful
+ * around the cursor: 128 x 96 is the widest mode, so a dense screenful is
+ * 12 KiB, and 16 KiB covers one with room over. That is what makes painting
+ * free of disk by construction rather than by hope.
+ */
+#define TB_CHUNK  (2 * 1024)
+#define TB_MARGIN (16 * 1024)
+
+typedef struct _text_buffer {
+    char_buffer cb_;
+    line_buffer lb_;
+    int x_;
+    bool dirty_;
+
+    // How many bytes a line break occupies *in the buffer*: two for CRLF, one
+    // for a bare line feed. The line index stores each line's length including
+    // its break, so this is what every piece of line arithmetic subtracts --
+    // line_len, tb_up, tb_down, tb_suffix, the range counting, and what
+    // tb_newline writes.
+    //
+    // It is the document's, not the line's. A file is read as it is when its
+    // breaks are all of one kind; one with both is normalised to CRLF on the
+    // way in, which is the only case that still costs a conversion.
+    int elen_;
+    // Where edits are recorded, or NULL to record nothing. NULL during tb_load,
+    // which is what keeps the file's own CRLF normalisation out of the history.
+    undo* undo_;
+    // Set when loading itself changed the document -- a file of mixed line
+    // endings is rewritten on save whatever the user does. None of that is in
+    // the undo log, so undoing everything cannot make it go away.
+    bool load_dirty_;
+
+    // Allocated, not inlined. A text_buffer is put on the stack every time the
+    // view walks the document -- refresh_screen and cmd_repaint_rows both do it
+    // per repaint -- and 256 bytes of name rode along on each of those for
+    // nothing, since a walker never has a file. Copies get NULL.
+    char* fname_;
+
+    // The document either side of what is in memory.
+    //
+    // The line index can only describe the lines the character buffer is
+    // holding, so on its own it can only answer "which line of *this*", and
+    // every line number the editor deals in is "which line of the document".
+    // Today those are the same question because the whole document is in
+    // memory; when it stops being, these are the difference.
+    //
+    // Both count whole lines, each ending in a break, which is why they add to
+    // the line count rather than to the break count: lines = breaks + 1, and
+    // the +1 belongs to the document once rather than to each of its pieces.
+    // See docs/PAGING.md.
+    //
+    // Zero throughout, until there is somewhere for a document to live but
+    // memory. They are here now because every line number in the editor is
+    // computed from them, and it is better to have that right while a document
+    // entirely in memory can still prove it.
+    int head_lines_;    // complete lines before the character buffer
+    int tail_lines_;    // complete lines after it
+
+    // Where those lines are. Only a document too big for memory has one; for
+    // everything else this is NULL and the two counters above stay at zero.
+    //
+    // Allocated, not inlined, for the same reason fname_ is: a doc_store
+    // carries two paths and is nearly 600 bytes, and a text_buffer goes on the
+    // stack every time the view walks the document. Inlined, it put every
+    // walker's frame past the 128 bytes an ix displacement reaches -- 235 frame
+    // escapes, against two before. test/frames.sh caught it on the first build.
+    doc_store* store_;
+    bool paged_;
+
+    // A walker: a copy made by tb_copy, for reading the document without
+    // disturbing the cursor that owns it.
+    //
+    // A copy shares the original's buffers -- that is the point of it, and why
+    // it is cheap -- so a write through one does not make a private change, it
+    // corrupts the document the original is still pointing into. Nothing does
+    // that today, by discipline rather than by anything stopping it.
+    //
+    // It is here now because the discipline is about to matter more than it
+    // does: once the document can be partly on disk, moving a walker far enough
+    // would slide the window out from under the cursor that owns it. Refusing
+    // the writes is the half of that which can be enforced while everything is
+    // still in memory. See docs/PAGING.md section 7.
+    bool walker_;
+
+    /*
+     * Where a walker is, said in numbers instead of in pointers.
+     *
+     * `wline_` is the line, indexed the way lb_curr reports it, and `woff_` is
+     * the byte offset of that line's *start* from lo_. Together with x_ they
+     * say everything about a walker's position without the buffers having to
+     * be moved to express it -- which is the point, because moving them is
+     * what forces prime_spare to keep a third of the free space at the cursor.
+     * See .internal/docs/WALKER.md.
+     *
+     * Meaningless on anything but a walker, and maintained only there.
+     */
+    int wline_;
+    int woff_;
+} text_buffer;
+
+/*
+ * How much RAM one open document gets, in kilobytes.
+ *
+ * tb_init splits it: a thirty-second goes to the line index, the rest to the
+ * character buffer. The index entries are three bytes each on this machine, so
+ * at 72 a document is 71,424 bytes of text plus 6,912 of index -- 79,164 all
+ * told once its name and scratch paths are counted, against a heap of 325,298.
+ * One document is under a third of what there is, and the rest is what every
+ * other feature is built from.
+ *
+ * Which is the number to change for a second one, and the only one. It is
+ * free to move now: it used to be pinned from below, because a walker read by
+ * moving the gap and the gap had to stay wider than a repaint, so a smaller
+ * buffer meant a bigger reserve meant a window with no room in it. Walkers
+ * move by number -- .internal/docs/WALKER.md -- and the floor went with that.
+ *
+ * It was 256 while nothing needed the heap. What 72 costs is arrow scrolling:
+ * 0.78 s against 0.34 for 3,000 lines on MOS 3.0.2, and 187 store reads for a
+ * full traversal against 119. Opening is faster, because less of the file is
+ * indexed at open, and seeking does not move at all. What it buys is 200 KB.
+ *
+ * The floor is lower than this. The host suite navigates a 480 KB document at
+ * whatever this says and passes at 48, failing at 44; correctness holds on the
+ * emulator down to 8. 72 leaves about half again over the arithmetic floor.
+ * See .internal/docs/SIZING.md section 3.
+ */
+#define TB_DOC_KB 72
+
+text_buffer* tb_init(text_buffer* tb, int mem_kb, const char* fname);
+void tb_destroy(text_buffer* tb);
+
+// Info ops.
+int tb_size(text_buffer* tb);
+int tb_available(text_buffer* tb);
+int tb_used(text_buffer* tb);
+bool tb_eol(text_buffer* tb);
+
+// How many bytes this document's line break takes: two for CRLF, one for a
+// bare line feed. A document keeps the breaks its file had, so anything
+// counting bytes across one has to ask rather than assume -- assuming two is
+// what four separate places did, and every one of them ate a character of the
+// next line on a document written with bare feeds.
+int tb_break_len(text_buffer* tb);
+bool tb_bol(text_buffer* tb);
+char* tb_fname(text_buffer* tb);
+bool tb_changed(text_buffer* tb);
+void tb_set_fname(text_buffer* tb, const char* fname, int sz);
+
+// Character ops.
+// Every one of these refuses on a walker, changing nothing and reporting
+// failure, the same as running out of room does.
+bool tb_put(text_buffer* tb, char ch);
+bool tb_del(text_buffer* tb);
+bool tb_bksp(text_buffer* tb);
+bool tb_newline(text_buffer* tb);
+bool tb_del_line(text_buffer* tb);
+bool tb_del_merge(text_buffer* tb);
+bool tb_bksp_merge(text_buffer* tb);
+
+// Cursor ops.
+char tb_next(text_buffer* tb);
+char tb_w_next(text_buffer* tb, char from_ch);
+char tb_prev(text_buffer* tb);
+char tb_w_prev(text_buffer* tb, char from_ch);
+char tb_home(text_buffer* tb);
+// Moves to `off` bytes from the start of the current line.
+char tb_goto_offset(text_buffer* tb, int off);
+char tb_up(text_buffer* tb);
+char tb_down(text_buffer* tb);
+char tb_end(text_buffer* tb);
+int tb_xpos(text_buffer* tb);
+int tb_ypos(text_buffer* tb);
+int tb_ymax(text_buffer* tb);
+
+// Text read.
+char tb_peek(text_buffer* tb);
+char* tb_suffix(text_buffer* tb, int* sz);
+char* tb_prefix(text_buffer* tb, int* sz);
+
+typedef struct _split_line {
+    int psz_;
+    char* prefix_;
+    int ssz_;
+    char* suffix_;
+} split_line;
+split_line tb_curr_line(text_buffer* tb);
+
+// Both of these report rather than print.
+//
+// tb_load used to write its complaint straight to the screen, on the grounds
+// that it runs at startup with no editor on it yet. That was wrong in a way
+// nothing noticed for a long time: by then the screen has been measured, put
+// into the user's colours and possibly given a font, and handing it back means
+// clearing it -- which wipes any message printed before. The one place that
+// knows when the screen is back is the caller, so the caller is told and says
+// so itself.
+typedef enum _tb_result {
+    TB_OK = 0,
+    TB_NO_FILE,     // could not be opened, and could not be created either
+    TB_TOO_LARGE,   // will not fit in the buffer, whatever is in there now
+    TB_IN_USE,      // too big for memory, and paged by another document already
+} tb_result;
+
+tb_result tb_load(text_buffer* tb, const char* fname);
+
+// Replaces the document with the contents of `fname`, as tb_load does for a
+// fresh buffer. A name that does not exist is created, so this is also how a
+// new document is started -- the same thing naming a missing file on the
+// command line does.
+//
+// The current document survives every failure this can report: the size is
+// checked against the whole buffer before a byte of it is discarded. Only an
+// I/O error partway through the read can leave the buffer empty, and by then
+// the file is gone as far as the editor is concerned anyway.
+tb_result tb_open(text_buffer* tb, const char* fname, int sz);
+
+// Empties the document, keeping the buffer and the file name. Cursor back to
+// the start, and not dirty: nothing has been typed into it.
+void tb_clear(text_buffer* tb);
+bool tb_save(text_buffer* tb);
+bool tb_valid_file(text_buffer* tb);
+void tb_copy(text_buffer* dst, text_buffer* src);
+
+// Attaches a log. Everything before this point is invisible to undo, which is
+// how loading a file avoids becoming the first thing you can undo.
+void tb_set_undo(text_buffer* tb, undo* u);
+
+// Whether `ch` ends a word, by the same rule CTRL+LEFT and CTRL+RIGHT use to
+// decide where to stop. Exposed so undo can group edits into the same units the
+// cursor moves in -- two notions of "word" in one editor would be worse than
+// either.
+bool tb_is_word_stop(char ch);
+
+
+// --- positions and ranges ---
+//
+// A position in the document is the pair (line, byte within that line). There
+// is no absolute offset: tb_goto_offset moves within the current line only, and
+// the bytes themselves are split across the gap. So anything that works on a
+// span of text -- selecting, copying, cutting -- needs a position it can carry
+// around and compare, which is what this is.
+//
+// `x` never includes the CRLF. A position at the end of a line's text and one
+// at the start of the next are different positions with nothing between them
+// but the line break, which is what makes a range unambiguous about whether it
+// takes the newline with it.
+typedef struct _tb_pos {
+    int line;   // 1-based, as tb_ypos reports it
+    int x;      // 0-based byte within the line, as tb_xpos reports it less one
+} tb_pos;
+
+tb_pos tb_tell(text_buffer* tb);
+
+// Moves the cursor to `p`, clamping to the document: past the last line lands
+// on the last line, past the end of a line lands at its end.
+void tb_seek(text_buffer* tb, tb_pos p);
+
+// Starts paging this document: opens the scratch store beside `base`, which is
+// the document's own path. Everything read in after this goes to the tail.
+bool tb_page_open(text_buffer* tb, const char* base);
+
+// Adds document text to the tail, counting the lines in it, as the loader
+// streams a file through. In order: what goes in first is earliest.
+bool tb_page_fill(text_buffer* tb, const char* buf, int n);
+
+// Fills memory from the tail, once the whole document has been put there. The
+// last thing a load does.
+//
+// Not a slide: a slide is symmetric, sending as much out of one end as it takes
+// in at the other, and at this point memory is empty and has nothing to send.
+// Filling stops with a chunk or two of room to spare, so that the first slide
+// in either direction has somewhere to put what it brings.
+bool tb_page_prime(text_buffer* tb);
+
+/*
+ * Moves the window the document is seen through, by one chunk.
+ *
+ * Down takes whole lines off the front of memory into the head and brings as
+ * many back from the tail; up is the exact reverse. Memory holds the same
+ * amount afterwards and the cursor is on the same line of the document -- what
+ * changes is which part of the document memory is holding.
+ *
+ * Returns false when there was nothing to do: an unpaged document, a walker
+ * (which must not move the window out from under the cursor that owns it), an
+ * end with nothing left on it, or a line too long to move.
+ */
+bool tb_slide_down(text_buffer* tb);
+bool tb_slide_up(text_buffer* tb);
+
+/*
+ * Slides until the cursor is clear of both margins, and reports whether
+ * anything moved.
+ *
+ * The margins are what make repainting free of disk. A repaint reads about a
+ * screenful either side of the cursor, and it reads it through walkers, which
+ * may not slide -- so the text it wants has to be in memory already. Keeping
+ * TB_MARGIN clear on each side is what guarantees that, rather than hoping.
+ *
+ * Called once after each command rather than from inside every movement: a
+ * command is the unit after which the screen gets repainted, and that is what
+ * the margins are protecting.
+ */
+bool tb_settle(text_buffer* tb);
+
+// For tests, which are the only way to see the paging arithmetic before there is
+// any paging: pretend some of the document is elsewhere. Everything derived from
+// a line number must move with these, and nothing else may.
+void tb_set_offscreen(text_buffer* tb, int head_lines, int tail_lines);
+
+// For tests, for the same reason: the only way to see the split-line scan
+// before there are split lines. A walker moves the gap to the start of every
+// line it reads, so nothing hands this two runs yet -- once one stops, every
+// search that passes the cursor's own line does. Positions in and out are
+// indices into the line as a whole. See .internal/docs/WALKER.md.
+int tb_scan_split(const char* pre, int psz, const char* suf, int ssz,
+                  const char* needle, int nsz, int from, bool forward);
+
+// Negative, zero or positive as `a` is before, at, or after `b`. Lets a caller
+// hand ranges over in either order without sorting them first.
+int tb_cmp(tb_pos a, tb_pos b);
+
+// Finds `needle` from `from`, forwards or backwards, wrapping once around the
+// document. Case-insensitive, ASCII. A match never spans a line break.
+//
+// `from.x` is where the scan starts on the first line: searching forward from a
+// match wants from.x + 1, or the same match is found again.
+//
+// The document is walked a line at a time on a copy rather than scanned as
+// memory. char_buffer is a gap buffer, so the text is in two pieces split at
+// wherever the cursor happens to be -- scanning it raw reads the gap's stale
+// bytes, and scanning the halves separately misses any match crossing the
+// split, which would make a search fail only when the cursor sat inside the
+// word it was looking for.
+bool tb_find(text_buffer* tb, const char* needle, int nsz, tb_pos from,
+             bool forward, tb_pos* at);
+
+// Bytes between the two positions, counting the CRLF of each line break
+// crossed. Order does not matter.
+int tb_range_size(text_buffer* tb, tb_pos a, tb_pos b);
+
+// Where the bytes of a range are sent. Called with each run of text and with
+// each line break separately; returns false to stop the walk.
+typedef bool (*tb_sink)(void* ctx, const char* buf, int sz);
+
+// Feeds the text between the two positions to `sink`, line breaks included as
+// CRLF. The document is only read. Returns false if the sink stopped it.
+//
+// Exists so that a range can go somewhere other than memory -- a copy too large
+// for the clipboard goes to a file -- without a second implementation of the
+// walk that would have to agree with this one about where lines end.
+bool tb_range_walk(text_buffer* tb, tb_pos a, tb_pos b, tb_sink sink, void* ctx);
+
+// Replaces `out` with the text between the two positions, line breaks included
+// as CRLF. Returns the number of bytes written, or -1 if the range will not fit
+// -- in which case `out` is left empty rather than holding a truncated copy,
+// since a caller that then deleted the range would destroy what it could not
+// keep. The document is not modified.
+int tb_range_copy(text_buffer* tb, tb_pos a, tb_pos b, char_buffer* out);
+
+// Deletes the text between the two positions, leaving the cursor where the
+// range began. Returns false only if nothing could be deleted.
+bool tb_range_del(text_buffer* tb, tb_pos a, tb_pos b);
+
+// Inserts `sz` bytes at the cursor, treating CRLF and a bare LF alike as a line
+// break so that text from anywhere pastes correctly. Refuses without writing
+// anything if the document has no room, so a paste either lands whole or not at
+// all.
+bool tb_insert(text_buffer* tb, const char* buf, int sz);
+
+// Inserts a run of bytes without checking there is room, for a caller that has
+// already checked the whole of what it is inserting. `pending_cr` carries a
+// trailing CR across calls: text arriving in chunks can be split between the
+// CR and the LF of one line break, and the two halves have to make one break
+// rather than two. It starts false, and if it is still true at the end the
+// caller owes one more tb_newline.
+bool tb_insert_span(text_buffer* tb, const char* buf, int sz, bool* pending_cr);
+
+// Whether `bytes` of text carrying `lines` line breaks would fit, once a range
+// of `free_bytes` spanning `free_lines` breaks has been removed to make way for
+// it. Both budgets are checked: the characters and the line index are bounded
+// separately, and on a document of short lines the index runs out first.
+//
+// A caller that replaces a selection has to ask before deleting it. Finding out
+// afterwards means the selection is already gone and there is nothing to paste
+// in its place -- and nothing to put back, since there is no undo.
+bool tb_can_insert(text_buffer* tb, int bytes, int lines,
+                   int free_bytes, int free_lines);
+
+#endif // _TEXT_BUFFER_H_
