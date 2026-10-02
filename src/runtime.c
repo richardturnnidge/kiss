@@ -452,9 +452,6 @@ void runcode(char* fname){
 
         }
 
-
-
-
         // try to create command index for each code line
         // then use later instead of strng lookup for every line
         //printf("Line was>%s<",curLine);
@@ -467,14 +464,13 @@ void runcode(char* fname){
 
         commandIndex[labelCounter] = cmdIndexFound;
 
-
     }
 
 // reset control variables
   running = true;
   currentLine = 0;
 
-// rest all varaibles
+// reset all varaibles
     for(uint8_t v = 0; v < 28; v++){
         varSpace[v] = 0;
     }
@@ -508,18 +504,16 @@ void runcode(char* fname){
 
         currentLine ++;     // inc line now, in case it gets changed by a GOTO
 
-
-
+        // timer checks on every command to see if it should cause an interrupt
+        // if so, make sure current line (timerReturnLine) to return to is stored
         if (timerRunning){
             if (clock() - lastTime >= timerFreq) {   // 100 ms passed
                 //printf("Tick! %d\n", clock());
     
                 lastTime = clock();
 
-
                 timerReturnLine = currentLine-1;
                 currentLine = timerLine;
-
             }
         }
 
@@ -540,9 +534,11 @@ void runcode(char* fname){
         if(vdp_getKeyCode() == 27){
             running =false;
         }
+
+        // go back round while loop from here for each line in the code
     }
 
-    // now we have finished the program and ready to exit
+    // now we have finished the program, ready to tidy up and exit
 
     if(DEBUGGING){
         printf("\n\nVariable space dump\n\n");
@@ -565,21 +561,18 @@ void runcode(char* fname){
     vdp_clear_screen();
 
 }
-/*-----------------------------------------------
 
-
-Here we step though all possible commands and act on them
-
-
-
-
-------------------------------------------------- */
+//------------------------------------------------
+//
+// Here we step though all possible commands and act on them
+// We pass in the command and each param
+// There is already a pre-calculated command index for each line number commandIndex[x]
+//
+//------------------------------------------------
 
 void parseLine(char *command, char *param1, char *param2, char *param3, char *param4){
 
-uint8_t lineCmd = commandIndex[currentLine - 1];
-
-
+uint8_t lineCmd = commandIndex[currentLine - 1];    // as currentLine is already set to the next line, we need to subtract 1
 
 switch (lineCmd) {
 
@@ -1810,9 +1803,23 @@ if(DEBUGGING) printf("p1 %s p2 %s p3 %s \n", param1, param2, param3);
 
         if(*param1 == '0'){
             vdp_cursor_enable(false);
-        } else {
-            vdp_cursor_enable(true);
+            } else {
+                if(*param1 == '2'){
+                vdp_cursor_enable(true);
+                // 23,1,2 steady
+                putchar(23);
+                putchar(1);
+                putchar(2);
+            } else {
+                vdp_cursor_enable(true);
+                // 23,1,3 flash
+                putchar(23);
+                putchar(1);
+                putchar(3);
+            }
         }
+
+
         break;
 
 //-----------------------------------------------
@@ -2421,12 +2428,17 @@ if(DEBUGGING) printf("p1 %s p2 %s p3 %s \n", param1, param2, param3);
     break;
 
 //-----------------------------------------------
-//
-//  END OF PARSING
-//
-//-----------------------------------------------
+
     }   // end of switch statement
 }       // end of command processing loop
+
+//-----------------------------------------------
+//
+//  END OF PARSING THE LINE
+//
+//-----------------------------------------------
+
+
 
 
 //-----------------------------------------------
@@ -2523,7 +2535,12 @@ void strip_leading_spaces_inplace(char *str) {
 
 char *strip_leading_spaces(char *str) {
     while (isspace((unsigned char)*str)) {
-    //while ((uint8_t)*str == 32) {
+        str++;
+    }
+    while ((uint8_t)*str == 32) {
+        str++;
+    }
+    while ((uint8_t)*str == 9) {
         str++;
     }
     return str;
