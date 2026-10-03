@@ -3,7 +3,7 @@
 KISS is a very simple stripped down language for the Agon platform (Agon light, Agon light2, Agon Origins, Console8) and is work in progress.  
 The objective is to think in simple commands and simple structures, with limited data.  
 A good prep for learning assembler, with a limited number of single character variable names and a limited number of actual commands.  
-The editor part is based on libraries used to built `AED` (Another Text Editor by Igor Chaves Cananea).  
+The editor part is based on libraries used to build `AED` (Another Text Editor by Igor Chaves Cananea).  
 VDP calls allow significant use of the VDP system if required.  
 To load, edit and run your file, use:  
 `kiss myfile.txt`  
