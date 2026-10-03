@@ -1,5 +1,5 @@
 /*
- * KISS, on AED's editing libraries (aed-libs 1.4.1, from AED's GitHub releases).
+ * KISS, on AED's editing libraries (aed-libs 1.6.2, from AED's GitHub releases).
  *
  * The editor is AED's: libedui and libedcore do the text, the screen and the
  * editing keys (ED_KEYS). This file adds what makes it KISS -- CTRL+R saves the
