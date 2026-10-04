@@ -301,7 +301,8 @@ void runcode(char* fname){
 	uart1Settings.flowcontrol= 0;
 	uart1Settings.eir = 0;
 
-
+    vdp_adv_clear_buffer(-1);
+    vdp_reset_sprites();
 
     build_sin_table();  // in case sin or cosine is needed
 
