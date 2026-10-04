@@ -38,6 +38,10 @@ uint8_t loopMax = 0 ;
 uint16_t loopReturnLine = 0 ;
 
 
+uint8_t SPx = 0 ;
+uint8_t SPy = 0 ;
+
+uint8_t spriteData[256];
 uint8_t dataSpace[256];
 uint16_t labels[256];                   // used to store line number of each label 0-255
 uint16_t returnStack[17];                   // used to store retun line numbers for each CALL
@@ -121,6 +125,12 @@ char *commandList[] = {
 
     "VDP",
     "VDPS",
+    "SPSET",
+    "SPADD",
+    "SPMOVE",
+    "SPSHOW",
+    "SPFRAME",
+    "SPACT",
 
     "DEBUG",
     "PRINTVARS",
@@ -194,6 +204,12 @@ enum cmds {
 
     VDP,
     VDPS,
+    SPSET,
+    SPADD,
+    SPMOVE,
+    SPSHOW,
+    SPFRAME,
+    SPACT,
 
     DEBUG,
     PRINTVARS,
@@ -248,6 +264,8 @@ uint16_t joy;
 char buffer[MAX_LEN];
 char *endptr;
 int val;
+
+uint16_t sprID;
 
 uint32_t lastTime;
 bool timerRunning;
@@ -1041,7 +1059,7 @@ if(DEBUGGING) printf("p1 %s p2 %s p3 %s \n", param1, param2, param3);
 //-----------------------------------------------
 //
 // process CALLIF command
-//  CALLIF <variable1/value> <variable2/value>
+//  CALLIF <LABEL> <variable1/value> <variable2/value>
 //
 //-----------------------------------------------
 
@@ -1055,6 +1073,7 @@ if(DEBUGGING) printf("p1 %s p2 %s p3 %s \n", param1, param2, param3);
         //     labelValue = atoi(param1);
         // }
 
+        // LABEL to call if matching
         if(*param1 > 57){ // must be a char, ie set to another variable
             currentLine = getLabelLine(param1);
             if(DEBUGGING) printf("CALLIF TEXT LABEL %s which is line %d \n", param1, currentLine);
@@ -1065,6 +1084,7 @@ if(DEBUGGING) printf("p1 %s p2 %s p3 %s \n", param1, param2, param3);
              if(DEBUGGING) printf("CALLIF NUMBER LABEL %d which is line %d \n", value, labels[value]);
         }
 
+        // first param to compare
         if(*param2 == 39){ // must be a single quote, ie char
             char v = param2[2];
             checkValue = (uint8_t)v;
@@ -1074,6 +1094,7 @@ if(DEBUGGING) printf("p1 %s p2 %s p3 %s \n", param1, param2, param3);
             checkValue = atoi(param2);
         }
 
+        // second param to compare
         if(*param3 == 39){ // must be a single quote, ie char
                 char v = param3[2];
                 value = (uint8_t)v;
@@ -2283,6 +2304,247 @@ if(DEBUGGING) printf("p1 %s p2 %s p3 %s \n", param1, param2, param3);
 // LOADSP num filename
 // SPRITETO x y
 // SHOWSPRITE num 0/1
+
+
+//-----------------------------------------------
+//
+//  process SPSET command
+//  define a sprite from a file
+//  SPSET ID filename
+//  SPSET <value/variable> <value/variable>
+//  sends several bytes to VDP from data
+//
+//-----------------------------------------------
+
+   case SPSET:
+
+    // get offset
+    // sprID is 16bit
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        sprID = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        sprID = atoi(param1);
+    }
+
+    newDatafile = fopen(param2, "r");
+
+    if (newDatafile != NULL)
+    {
+        fread(spriteData, 1,256, newDatafile ); 
+        if(DEBUGGING) printf("got data file, 1st byte is: %d\n", spriteData[0]);
+    } else {
+        if(DEBUGGING) printf("failed to open image data %s\n",param2);
+    }
+    fclose(newDatafile);
+
+    if(DEBUGGING) printf("File: %s 24th byte is: %d, ID is: %d \n", param2, spriteData[24], sprID);
+
+    // write data from file to buffer
+    vdp_adv_write_block_data(64000+ (sprID * 16) + 0, 256, spriteData);
+    vdp_adv_select_bitmap(64000+ (sprID * 16) + 0);
+    vdp_adv_bitmap_from_buffer(16,16,1);
+
+
+    if(DEBUGGING) printf("ID: %d trueID: %d 24th byte \n", sprID, 64000+ (sprID * 16));
+
+    vdp_select_sprite(sprID);
+    vdp_clear_sprite();
+    vdp_add_sprite_bitmap(sprID * 16);
+
+    vdp_set_hardware_sprite();
+
+
+    break;
+
+
+    //-----------------------------------------------
+//
+//  process SPADD command
+//  add a frame from a file
+//  SPADD ID frame filename
+//  SPADD <value/variable> <value/variable> string
+//  sends several bytes to VDP from data
+//
+//-----------------------------------------------
+
+   case SPADD:
+
+    // get offset
+    // sprID is 16bit
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        sprID = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        sprID = atoi(param1);
+    }    
+    if(*param2 > 57){ // must be a char, ie set to another variable
+        offset = varSpace[lower(*param2)];
+    } else { // else it is an int value
+        offset = atoi(param2);
+    }
+
+    newDatafile = fopen(param3, "r");
+
+    if (newDatafile != NULL)
+    {
+        fread(spriteData, 1,256, newDatafile ); 
+        if(DEBUGGING) printf("got data file, 1st byte is: %d\n", spriteData[0]);
+    } else {
+        if(DEBUGGING) printf("failed to open image data %s\n",param3);
+    }
+    fclose(newDatafile);
+
+    if(DEBUGGING) printf("File: %s 1st byte is: %d, ID is: %d \n", param3, spriteData[24], sprID);
+
+    // write data from file to buffer
+    vdp_adv_write_block_data(64000+ (sprID * 16) + offset, 256, spriteData);
+    vdp_adv_select_bitmap(64000+ (sprID * 16) + offset);
+    vdp_adv_bitmap_from_buffer(16,16,1);
+
+
+    vdp_select_sprite(sprID);
+    vdp_add_sprite_bitmap((sprID * 16) + offset);
+
+
+    break;
+
+//-----------------------------------------------
+//
+//  process SPMOVE command
+//  SPMOVE ID x,y
+//  SPMOVE <value/variable> <value/variable>
+//
+//-----------------------------------------------
+
+   case SPMOVE:
+
+    // get x and y
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        sprID = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        sprID = atoi(param1);
+    }
+
+    if(*param2 > 57){ // must be a char, ie set to another variable
+        SPx = varSpace[lower(*param2)];
+    } else { // else it is an int value
+        SPx = atoi(param2);
+    }
+
+    if(*param3 > 57){ // must be a char, ie set to another variable
+        SPy = varSpace[lower(*param3)];
+    } else { // else it is an int value
+        SPy = atoi(param3);
+    }
+
+    vdp_select_sprite(sprID);
+
+
+    vdp_move_sprite_to(SPx, SPy);
+
+    vdp_refresh_sprites();
+
+
+    break;
+
+
+//-----------------------------------------------
+//
+//  process SPSHOW command
+//  SPSHOW ID show/hide
+//  SPSHOW <value/variable> <value/variable>
+//
+//-----------------------------------------------
+
+   case SPSHOW:
+
+    // get x and y
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        sprID = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        sprID = atoi(param1);
+    }
+
+    if(*param2 > 57){ // must be a char, ie set to another variable
+        SPx = varSpace[lower(*param2)];
+    } else { // else it is an int value
+        SPx = atoi(param2);
+    }
+
+
+    vdp_select_sprite(sprID);
+
+    if(SPx == 0 ){ // hide
+        vdp_hide_sprite();
+    } else { // show
+        vdp_show_sprite();
+    }
+    
+
+    vdp_refresh_sprites();
+
+
+    break;
+
+//-----------------------------------------------
+//
+//  process SPSHOW command
+//  SPSHOW ID show/hide
+//  SPSHOW <value/variable> <value/variable>
+//
+//-----------------------------------------------
+
+   case SPACT:
+
+    // get x and y
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        sprID = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        sprID = atoi(param1);
+    }
+    
+    vdp_activate_sprites(sprID);
+
+    vdp_refresh_sprites();
+
+
+    break;
+
+
+ 
+//-----------------------------------------------
+//
+//  process SPFRAME command
+//  SPFRAME ID show/hide
+//  SPFRAME <value/variable> <value/variable>
+//
+//-----------------------------------------------
+
+   case SPFRAME:
+
+    // get x and y
+    if(*param1 > 57){ // must be a char, ie set to another variable
+        sprID = varSpace[lower(*param1)];
+    } else { // else it is an int value
+        sprID = atoi(param1);
+    }
+
+    if(*param2 > 57){ // must be a char, ie set to another variable
+        SPx = varSpace[lower(*param2)];
+    } else { // else it is an int value
+        SPx = atoi(param2);
+    }
+
+
+    vdp_select_sprite(sprID);
+
+    vdp_nth_sprite_frame(SPx);
+    
+    vdp_refresh_sprites();
+
+
+    break;
+
+
  
 
 
